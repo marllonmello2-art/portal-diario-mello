@@ -33,6 +33,23 @@ step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 
 # ---------------------------------------------------------------- credenciais
 step "Conferindo o acesso à Cloudflare"
+
+# O Account ID costuma ser copiado junto com a URL do painel
+# ("https://dash.cloudflare.com/<id>/workers-and-pages"). Em vez de falhar com
+# um erro obscuro da API, extraímos o identificador de 32 caracteres.
+if [[ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
+  CLEAN_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | grep -oiE '[0-9a-f]{32}' | head -1 || true)"
+  if [[ -n "$CLEAN_ACCOUNT_ID" && "$CLEAN_ACCOUNT_ID" != "$CLOUDFLARE_ACCOUNT_ID" ]]; then
+    echo "Account ID veio com texto em volta (URL?) — usando só o identificador."
+    export CLOUDFLARE_ACCOUNT_ID="$CLEAN_ACCOUNT_ID"
+  fi
+fi
+
+# Espaços ou quebras de linha coladas junto do token quebram a autenticação.
+if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+  export CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
+fi
+
 if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
   if ! wrangler whoami >/dev/null 2>&1; then
     cat >&2 <<'MSG'

@@ -1,4 +1,9 @@
-import { deleteArticle, normalizeStatus, updateArticle } from "../../../../../lib/portal/articles";
+import {
+  checkCoverRights,
+  deleteArticle,
+  normalizeStatus,
+  updateArticle,
+} from "../../../../../lib/portal/articles";
 import { guardAdmin, isResponse } from "../../../../../lib/portal/api-guard";
 import { listAudit, recordAudit } from "../../../../../lib/portal/audit";
 import {
@@ -49,6 +54,20 @@ export async function PATCH(request: Request, { params }: Context) {
 
   const body = (await request.json()) as Record<string, unknown>;
 
+  // Direitos de imagem valem já na gravação: assim o problema aparece para
+  // quem escolheu a foto, e não só na hora de publicar.
+  const direitos = checkCoverRights({
+    coverImageUrl:
+      body.coverImageUrl === undefined ? atual.coverImageUrl : (body.coverImageUrl as string),
+    coverCredit: body.coverCredit === undefined ? atual.coverCredit : (body.coverCredit as string),
+    coverSource: body.coverSource === undefined ? atual.coverSource : (body.coverSource as string),
+    coverAiGenerated:
+      body.coverAiGenerated === undefined
+        ? Boolean(atual.coverAiGenerated)
+        : Boolean(body.coverAiGenerated),
+  });
+  if (!direitos.ok) return Response.json({ error: direitos.reason }, { status: 400 });
+
   const article = await updateArticle(guard.db, id, {
     title: body.title === undefined ? undefined : String(body.title),
     content: body.content === undefined ? undefined : String(body.content),
@@ -57,6 +76,15 @@ export async function PATCH(request: Request, { params }: Context) {
     authorId: body.authorId === undefined ? undefined : (body.authorId as string | null),
     coverImageUrl: body.coverImageUrl === undefined ? undefined : (body.coverImageUrl as string | null),
     coverCredit: body.coverCredit === undefined ? undefined : (body.coverCredit as string | null),
+    coverSource: body.coverSource === undefined ? undefined : (body.coverSource as string | null),
+    coverLicense: body.coverLicense === undefined ? undefined : (body.coverLicense as string | null),
+    coverObtainedAt:
+      body.coverObtainedAt === undefined ? undefined : (body.coverObtainedAt as string | null),
+    coverUsageNote:
+      body.coverUsageNote === undefined ? undefined : (body.coverUsageNote as string | null),
+    coverAiGenerated:
+      body.coverAiGenerated === undefined ? undefined : Boolean(body.coverAiGenerated),
+    classification: body.classification === undefined ? undefined : String(body.classification),
     tags: Array.isArray(body.tags) ? (body.tags as string[]) : undefined,
     accessLevel: body.accessLevel === undefined ? undefined : String(body.accessLevel),
     featured: body.featured === undefined ? undefined : Boolean(body.featured),

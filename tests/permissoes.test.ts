@@ -78,3 +78,55 @@ test("apagar de vez é do administrador; criar é da redação", () => {
   assert.equal(canCreateArticle(autor), true);
   assert.equal(canCreateArticle(admin), false);
 });
+
+/* ------------------- fase 2: classificação e imagens ------------------- */
+
+import {
+  CLASSIFICATIONS,
+  CLASSIFICATION_NOTICE,
+  NOT_FEATURABLE,
+  requiresConfirmedSource,
+} from "../lib/portal/classification.ts";
+import { checkCoverRights, AI_IMAGE_CREDIT } from "../lib/portal/media-rights.ts";
+
+test("só notícia exige fonte confirmada", () => {
+  assert.equal(requiresConfirmedSource("NOTICIA"), true);
+  for (const outra of CLASSIFICATIONS.filter((c) => c !== "NOTICIA")) {
+    assert.equal(requiresConfirmedSource(outra), false, outra);
+  }
+});
+
+test("patrocinado e comunicado nunca são manchete", () => {
+  assert.deepEqual(NOT_FEATURABLE, ["PATROCINADO", "COMUNICADO"]);
+});
+
+test("opinião, patrocinado e comunicado avisam o leitor", () => {
+  for (const classe of ["OPINIAO", "PATROCINADO", "COMUNICADO"] as const) {
+    assert.ok(CLASSIFICATION_NOTICE[classe], `${classe} precisa de aviso ao leitor`);
+  }
+});
+
+test("capa sem crédito ou origem é recusada", () => {
+  const semNada = checkCoverRights({ coverImageUrl: "https://x/y.jpg" });
+  assert.equal(semNada.ok, false);
+
+  const soCredito = checkCoverRights({ coverImageUrl: "https://x/y.jpg", coverCredit: "Foto: Fulano" });
+  assert.equal(soCredito.ok, false);
+
+  const completa = checkCoverRights({
+    coverImageUrl: "https://x/y.jpg",
+    coverCredit: "Foto: Fulano",
+    coverSource: "Agência Brasil",
+  });
+  assert.equal(completa.ok, true);
+});
+
+test("imagem gerada por IA dispensa crédito de terceiro, mas se identifica", () => {
+  const ia = checkCoverRights({ coverImageUrl: "https://x/y.jpg", coverAiGenerated: true });
+  assert.equal(ia.ok, true);
+  assert.match(AI_IMAGE_CREDIT, /gerada por IA/i);
+});
+
+test("matéria sem capa não é bloqueada por direitos de imagem", () => {
+  assert.equal(checkCoverRights({ coverImageUrl: null }).ok, true);
+});

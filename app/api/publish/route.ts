@@ -28,6 +28,7 @@ type PublishBody = {
   cover_image_url?: string;
   cover_credit?: string;
   access_level?: string;
+  classification?: string;
   featured?: boolean;
 };
 
@@ -107,6 +108,7 @@ export async function POST(request: Request) {
     coverCredit: body.cover_credit ?? null,
     tags: Array.isArray(body.tags) ? body.tags.filter((tag) => typeof tag === "string") : [],
     status: INTEGRATION_ENTRY_STATUS,
+    classification: body.classification ?? "NOTICIA",
     accessLevel: body.access_level ?? null,
     featured: false,
     origin: "integracao",
@@ -143,6 +145,7 @@ export async function POST(request: Request) {
         subtitle: article.subtitle,
         status: article.status,
         status_descricao: STATUS_LABEL[article.status as keyof typeof STATUS_LABEL] ?? article.status,
+        classification: article.classification,
         access_level: article.accessLevel,
         category: article.categoryName,
         category_slug: article.categorySlug,

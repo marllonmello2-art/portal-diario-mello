@@ -19,6 +19,10 @@ import {
   tagsOfArticle,
 } from "../../../lib/portal/queries";
 import { AccessGate } from "../../../components/portal/AccessGate";
+import {
+  ClassificationNotice,
+  ClassificationTag,
+} from "../../../components/portal/ClassificationTag";
 import { SaveArticleButton } from "../../../components/portal/SaveArticleButton";
 import { currentReader } from "../../../lib/portal/session-server";
 
@@ -136,6 +140,7 @@ export default async function ArticlePage({ params }: PageProps) {
             {article.accessLevel === "registered" ? (
               <span className="dm-kicker dm-kicker-exclusive">Exclusiva</span>
             ) : null}
+            <ClassificationTag classification={article.classification} />
           </div>
 
           <h1 className="dm-article-title">{article.title}</h1>
@@ -160,10 +165,19 @@ export default async function ArticlePage({ params }: PageProps) {
             </div>
           </div>
 
+          <ClassificationNotice
+            classification={article.classification}
+            authorName={article.authorName}
+          />
+
           {article.coverImageUrl ? (
             <figure className="dm-figure">
               <Img src={article.coverImageUrl} alt={article.title} loading="eager" />
-              {article.coverCredit ? <figcaption>{article.coverCredit}</figcaption> : null}
+              {article.coverCredit || article.coverSource ? (
+                <figcaption>
+                  {[article.coverCredit, article.coverSource].filter(Boolean).join(" · ")}
+                </figcaption>
+              ) : null}
             </figure>
           ) : null}
 

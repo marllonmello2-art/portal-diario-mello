@@ -1,4 +1,4 @@
-import { createArticle } from "../../../../lib/portal/articles";
+import { checkCoverRights, createArticle } from "../../../../lib/portal/articles";
 import { guardAdmin, isResponse } from "../../../../lib/portal/api-guard";
 import { recordAudit } from "../../../../lib/portal/audit";
 import { canCreateArticle, forbidden, hasRole } from "../../../../lib/portal/permissions";
@@ -38,6 +38,14 @@ export async function POST(request: Request) {
     return Response.json({ error: "Título e texto são obrigatórios." }, { status: 400 });
   }
 
+  const direitos = checkCoverRights({
+    coverImageUrl: body.coverImageUrl as string,
+    coverCredit: body.coverCredit as string,
+    coverSource: body.coverSource as string,
+    coverAiGenerated: Boolean(body.coverAiGenerated),
+  });
+  if (!direitos.ok) return Response.json({ error: direitos.reason }, { status: 400 });
+
   const article = await createArticle(guard.db, {
     title,
     content,
@@ -46,6 +54,12 @@ export async function POST(request: Request) {
     authorId: (body.authorId as string) ?? null,
     coverImageUrl: (body.coverImageUrl as string) ?? null,
     coverCredit: (body.coverCredit as string) ?? null,
+    coverSource: (body.coverSource as string) ?? null,
+    coverLicense: (body.coverLicense as string) ?? null,
+    coverObtainedAt: (body.coverObtainedAt as string) ?? null,
+    coverUsageNote: (body.coverUsageNote as string) ?? null,
+    coverAiGenerated: Boolean(body.coverAiGenerated),
+    classification: (body.classification as string) ?? "NOTICIA",
     tags: Array.isArray(body.tags) ? (body.tags as string[]) : [],
     accessLevel: (body.accessLevel as string) ?? "public",
     featured: Boolean(body.featured),

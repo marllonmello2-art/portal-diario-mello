@@ -33,7 +33,16 @@ export const articles = sqliteTable("articles", {
   subtitle: text("subtitle"),
   content: text("content").notNull(),
   coverImageUrl: text("cover_image_url"),
+  /** Autor/crédito da imagem de capa. */
   coverCredit: text("cover_credit"),
+  /** De onde a imagem veio (agência, órgão, fotógrafo, banco de imagens). */
+  coverSource: text("cover_source"),
+  /** Licença ou autorização de uso. */
+  coverLicense: text("cover_license"),
+  coverObtainedAt: text("cover_obtained_at"),
+  coverUsageNote: text("cover_usage_note"),
+  /** Imagem ilustrativa gerada por IA — dispensa crédito de terceiro. */
+  coverAiGenerated: integer("cover_ai_generated").notNull().default(0),
   categoryId: text("category_id").references(() => categories.id),
   authorId: text("author_id").references(() => authors.id),
   /**
@@ -42,6 +51,11 @@ export const articles = sqliteTable("articles", {
    * A máquina de estados vive em lib/portal/permissions.ts.
    */
   status: text("status").notNull().default("RASCUNHO"),
+  /**
+   * O que esta publicação é: NOTICIA, OPINIAO, PATROCINADO, COMUNICADO,
+   * ANALISE ou CORRECAO. Aparece para o leitor no site.
+   */
+  classification: text("classification").notNull().default("NOTICIA"),
   /**
    * Quem pode ler o texto completo:
    * `public` — qualquer visitante;
@@ -91,6 +105,55 @@ export const adminUsers = sqliteTable("admin_users", {
   role: text("role").notNull().default("editor"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   lastLoginAt: text("last_login_at"),
+});
+
+/**
+ * Apuração: as fontes de cada matéria.
+ *
+ * Área interna da redação. Nada daqui é serializado para o site público —
+ * nem em JSON, nem em metadado — porque inclui apuração em andamento e
+ * material sob reserva.
+ */
+export const articleSources = sqliteTable("article_sources", {
+  id: text("id").primaryKey(),
+  articleId: text("article_id").notNull().references(() => articles.id, { onDelete: "cascade" }),
+  /** Nome da fonte ou do documento. */
+  name: text("name").notNull(),
+  /** documento_publico | entrevista | orgao_oficial | pesquisa | outro */
+  type: text("type").notNull().default("outro"),
+  /** Link ou referência do documento. */
+  reference: text("reference"),
+  consultedAt: text("consulted_at"),
+  /** pendente | confirmado | contestado */
+  status: text("status").notNull().default("pendente"),
+  note: text("note"),
+  /** Fonte sob reserva: aparece só para a equipe, com aviso. */
+  confidential: integer("confidential").notNull().default(0),
+  createdByUserId: text("created_by_user_id"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+/**
+ * Acervo de mídia com a papelada de direitos.
+ *
+ * Toda imagem que entra pelo painel é registrada aqui com crédito, origem e
+ * licença — é o que permite responder, meses depois, de onde veio uma foto.
+ */
+export const mediaAssets = sqliteTable("media_assets", {
+  id: text("id").primaryKey(),
+  /** Chave no bucket R2. */
+  key: text("key").notNull(),
+  url: text("url").notNull(),
+  mime: text("mime"),
+  bytes: integer("bytes"),
+  credit: text("credit"),
+  source: text("source"),
+  license: text("license"),
+  obtainedAt: text("obtained_at"),
+  usageNote: text("usage_note"),
+  aiGenerated: integer("ai_generated").notNull().default(0),
+  uploadedByUserId: text("uploaded_by_user_id"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
 /**

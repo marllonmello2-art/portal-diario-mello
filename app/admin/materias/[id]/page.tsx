@@ -4,6 +4,9 @@ import { AdminShell } from "../../../../components/admin/AdminShell";
 import { ArticleEditor } from "../../../../components/admin/ArticleEditor";
 import { WorkflowPanel } from "../../../../components/admin/WorkflowPanel";
 import { AuditTrail } from "../../../../components/admin/AuditTrail";
+import { SourcesPanel } from "../../../../components/admin/SourcesPanel";
+import { listSources } from "../../../../lib/portal/sources";
+import { requiresConfirmedSource } from "../../../../lib/portal/classification";
 import { listAudit } from "../../../../lib/portal/audit";
 import { getPortalDb } from "../../../../lib/portal/db";
 import { toLocalInput } from "../../../../lib/portal/format";
@@ -33,11 +36,12 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
   if (!article) notFound();
 
   const status = normalizeStatus(article.status);
-  const [categories, authors, tags, historico] = await Promise.all([
+  const [categories, authors, tags, historico, fontes] = await Promise.all([
     listCategories(db),
     listAuthors(db),
     tagsOfArticle(db, id),
     listAudit(db, { entity: "article", entityId: id, limit: 30 }),
+    listSources(db, id),
   ]);
 
   // Quem decide se esta pessoa edita é o mesmo módulo que a API consulta.
@@ -70,18 +74,32 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
           publishedAt: article.publishedAt,
           origin: article.origin,
           aiAssisted: article.aiAssisted,
+          classification: article.classification,
+          coverSource: article.coverSource,
+          coverLicense: article.coverLicense,
+          coverObtainedAt: null,
+          coverUsageNote: null,
+          coverAiGenerated: article.coverAiGenerated,
         }}
         initialTags={tags.map((tag) => tag.name)}
       />
 
       <div className="dm-editor-layout" style={{ marginTop: 18 }}>
-        <AuditTrail eventos={historico} />
-        <WorkflowPanel
+        <SourcesPanel
           articleId={article.id}
-          status={status}
-          transitions={transicoes}
-          scheduledFor={toLocalInput(article.publishedAt) || toLocalInput(new Date().toISOString())}
+          fontes={fontes}
+          exigeConfirmada={requiresConfirmedSource(article.classification)}
+          somenteLeitura={!podeEditar.ok}
         />
+        <div>
+          <WorkflowPanel
+            articleId={article.id}
+            status={status}
+            transitions={transicoes}
+            scheduledFor={toLocalInput(article.publishedAt) || toLocalInput(new Date().toISOString())}
+          />
+          <AuditTrail eventos={historico} />
+        </div>
       </div>
     </AdminShell>
   );

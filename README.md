@@ -90,6 +90,21 @@ sempre em EM_REVISAO, marcada como origem `integracao`. Não existe caminho de
 código de uma integração até PUBLICADA — publicar é ato de um EDITOR_CHEFE
 humano, registrado com nome e horário.
 
+**Classificação obrigatória:** toda publicação declara o que é — NOTICIA,
+OPINIAO, PATROCINADO, COMUNICADO, ANALISE ou CORRECAO — e o site diz isso ao
+leitor. Opinião traz a responsabilidade do autor; patrocinado e comunicado têm
+aviso próprio e nunca ocupam a manchete da capa.
+
+**Apuração e fontes:** cada matéria tem um caderno interno de fontes (nome,
+tipo, referência, data de consulta, status, observação e marca de reserva).
+Nada dessa área é servido ao site. Matéria classificada como notícia só chega a
+APROVADA com ao menos uma fonte **confirmada**.
+
+**Direitos de imagem:** capa exige crédito do autor e origem, com licença, data
+de obtenção e observação de uso; cada upload entra no acervo `media_assets` com
+essa papelada. A exceção é a ilustração do próprio portal, creditada como
+"Imagem ilustrativa gerada por IA".
+
 **Auditoria:** `/admin/auditoria` guarda login, criação, edição, mudança de
 estado, aprovação, publicação e exclusão. Linhas nunca são alteradas.
 

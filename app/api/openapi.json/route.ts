@@ -121,6 +121,13 @@ export async function GET(request: Request) {
             tags: { type: "array", items: { type: "string" }, description: "Lista de tags." },
             cover_image_url: { type: "string", description: "URL da imagem de capa." },
             cover_credit: { type: "string", description: "Crédito da foto de capa." },
+            classification: {
+              type: "string",
+              enum: ["NOTICIA", "OPINIAO", "PATROCINADO", "COMUNICADO", "ANALISE", "CORRECAO"],
+              default: "NOTICIA",
+              description:
+                "O que a publicação é. NOTICIA exige ao menos uma fonte confirmada, registrada pela redação, antes de ser aprovada.",
+            },
             access_level: {
               type: "string",
               enum: ["public", "registered"],
@@ -150,6 +157,7 @@ export async function GET(request: Request) {
                   description: "Sempre EM_REVISAO para matérias vindas de integração.",
                 },
                 status_descricao: { type: "string" },
+                classification: { type: "string" },
                 access_level: { type: "string" },
                 category: { type: ["string", "null"] },
                 category_slug: { type: ["string", "null"] },

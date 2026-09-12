@@ -5,6 +5,13 @@
 import { eq } from "drizzle-orm";
 import { articles, authors, categories } from "../../db/schema";
 import { recordAudit, type AuditActor } from "./audit";
+import {
+  isClassification,
+  requiresConfirmedSource,
+  type Classification,
+} from "./classification";
+import { AI_IMAGE_CREDIT, checkCoverRights } from "./media-rights";
+import { hasConfirmedSource } from "./sources";
 import type { PortalDb } from "./db";
 import {
   canTransition,
@@ -17,6 +24,8 @@ import { getArticleById, syncArticleTags } from "./queries";
 import { slugify, uniqueSlug } from "./slug";
 
 export type ArticleStatus = Status;
+
+export { AI_IMAGE_CREDIT, checkCoverRights };
 
 export type ArticleInput = {
   title: string;
@@ -34,12 +43,23 @@ export type ArticleInput = {
   accessLevel?: string | null;
   publishedAt?: string | null;
   featured?: boolean;
+  classification?: string | null;
+  coverSource?: string | null;
+  coverLicense?: string | null;
+  coverObtainedAt?: string | null;
+  coverUsageNote?: string | null;
+  coverAiGenerated?: boolean;
   /** Usuário do painel dono da matéria. */
   createdByUserId?: string | null;
   /** `painel` ou `integracao`. */
   origin?: string | null;
   aiAssisted?: boolean;
 };
+
+/** Classificação desconhecida vira notícia — o nível mais exigente. */
+export function normalizeClassification(value: string | null | undefined): Classification {
+  return value && isClassification(value) ? value : "NOTICIA";
+}
 
 /** Só dois níveis por enquanto; qualquer outro valor vira conteúdo aberto. */
 export function normalizeAccessLevel(value: string | null | undefined): "public" | "registered" {
@@ -133,6 +153,7 @@ export async function createArticle(db: PortalDb, input: ArticleInput) {
   // de estado passa pela máquina — inclusive para quem vem de integração.
   const pedido = normalizeStatus(input.status);
   const status: Status = pedido === "EM_REVISAO" ? "EM_REVISAO" : "RASCUNHO";
+  const aiCover = Boolean(input.coverAiGenerated);
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
 
@@ -143,7 +164,13 @@ export async function createArticle(db: PortalDb, input: ArticleInput) {
     subtitle: input.subtitle?.trim() || null,
     content: input.content,
     coverImageUrl: input.coverImageUrl?.trim() || null,
-    coverCredit: input.coverCredit?.trim() || null,
+    coverCredit: aiCover ? AI_IMAGE_CREDIT : input.coverCredit?.trim() || null,
+    coverSource: aiCover ? "Diário Mello" : input.coverSource?.trim() || null,
+    coverLicense: input.coverLicense?.trim() || null,
+    coverObtainedAt: input.coverObtainedAt || null,
+    coverUsageNote: input.coverUsageNote?.trim() || null,
+    coverAiGenerated: aiCover ? 1 : 0,
+    classification: normalizeClassification(input.classification),
     categoryId: await resolveCategoryId(db, input),
     authorId: await resolveAuthorId(db, input),
     status,
@@ -169,6 +196,10 @@ export async function updateArticle(db: PortalDb, id: string, input: Partial<Art
   const [current] = await db.select().from(articles).where(eq(articles.id, id)).limit(1);
   if (!current) return null;
 
+  const aiCover =
+    input.coverAiGenerated === undefined
+      ? Boolean(current.coverAiGenerated)
+      : Boolean(input.coverAiGenerated);
   const titleChanged = Boolean(input.title && input.title.trim() !== current.title);
 
   await db
@@ -180,7 +211,27 @@ export async function updateArticle(db: PortalDb, id: string, input: Partial<Art
       content: input.content ?? current.content,
       coverImageUrl:
         input.coverImageUrl === undefined ? current.coverImageUrl : input.coverImageUrl?.trim() || null,
-      coverCredit: input.coverCredit === undefined ? current.coverCredit : input.coverCredit?.trim() || null,
+      coverCredit: aiCover
+        ? AI_IMAGE_CREDIT
+        : input.coverCredit === undefined
+          ? current.coverCredit
+          : input.coverCredit?.trim() || null,
+      coverSource: aiCover
+        ? "Diário Mello"
+        : input.coverSource === undefined
+          ? current.coverSource
+          : input.coverSource?.trim() || null,
+      coverLicense:
+        input.coverLicense === undefined ? current.coverLicense : input.coverLicense?.trim() || null,
+      coverObtainedAt:
+        input.coverObtainedAt === undefined ? current.coverObtainedAt : input.coverObtainedAt || null,
+      coverUsageNote:
+        input.coverUsageNote === undefined ? current.coverUsageNote : input.coverUsageNote?.trim() || null,
+      coverAiGenerated: aiCover ? 1 : 0,
+      classification:
+        input.classification === undefined
+          ? current.classification
+          : normalizeClassification(input.classification),
       categoryId:
         input.categoryId === undefined && input.categorySlug === undefined
           ? current.categoryId
@@ -236,6 +287,30 @@ export async function transitionArticle(
   const from = normalizeStatus(current.status);
   const permitido = canTransition(actor, from, to);
   if (!permitido.ok) return { ok: false, reason: permitido.reason, code: "FORBIDDEN" };
+
+  // Notícia só é aprovada com apuração registrada. A trava vale para todo
+  // mundo, inclusive editor-chefe: é regra do veículo, não permissão de perfil.
+  if (to === "APROVADA" && requiresConfirmedSource(current.classification)) {
+    if (!(await hasConfirmedSource(db, id))) {
+      return {
+        ok: false,
+        reason:
+          "Matéria classificada como notícia precisa de pelo menos uma fonte confirmada em Apuração e fontes.",
+        code: "FORBIDDEN",
+      };
+    }
+  }
+
+  // Direitos de imagem: não se publica capa sem crédito e origem.
+  if (to === "PUBLICADA" || to === "AGENDADA" || to === "CORRIGIDA") {
+    const direitos = checkCoverRights({
+      coverImageUrl: current.coverImageUrl,
+      coverCredit: current.coverCredit,
+      coverSource: current.coverSource,
+      coverAiGenerated: Boolean(current.coverAiGenerated),
+    });
+    if (!direitos.ok) return { ok: false, reason: direitos.reason, code: "FORBIDDEN" };
+  }
 
   const agora = new Date().toISOString();
   const mudancas: Record<string, unknown> = { status: to, updatedAt: agora };

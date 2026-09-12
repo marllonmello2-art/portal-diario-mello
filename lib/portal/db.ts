@@ -111,6 +111,35 @@ const DDL = [
     source TEXT NOT NULL DEFAULT 'site',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS article_sources (
+    id TEXT PRIMARY KEY NOT NULL,
+    article_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'outro',
+    reference TEXT,
+    consulted_at TEXT,
+    status TEXT NOT NULL DEFAULT 'pendente',
+    note TEXT,
+    confidential INTEGER NOT NULL DEFAULT 0,
+    created_by_user_id TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS article_sources_article_idx ON article_sources(article_id)`,
+  `CREATE TABLE IF NOT EXISTS media_assets (
+    id TEXT PRIMARY KEY NOT NULL,
+    key TEXT NOT NULL,
+    url TEXT NOT NULL,
+    mime TEXT,
+    bytes INTEGER,
+    credit TEXT,
+    source TEXT,
+    license TEXT,
+    obtained_at TEXT,
+    usage_note TEXT,
+    ai_generated INTEGER NOT NULL DEFAULT 0,
+    uploaded_by_user_id TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
   `CREATE TABLE IF NOT EXISTS admin_user_roles (
     user_id TEXT NOT NULL,
     role TEXT NOT NULL,
@@ -210,6 +239,13 @@ async function addMissingColumns(d1: D1Database) {
     ["approved_by_user_id", "ALTER TABLE articles ADD COLUMN approved_by_user_id TEXT"],
     ["approved_at", "ALTER TABLE articles ADD COLUMN approved_at TEXT"],
     ["published_by_user_id", "ALTER TABLE articles ADD COLUMN published_by_user_id TEXT"],
+    // Fase 2: classificação e direitos de imagem.
+    ["classification", "ALTER TABLE articles ADD COLUMN classification TEXT NOT NULL DEFAULT 'NOTICIA'"],
+    ["cover_source", "ALTER TABLE articles ADD COLUMN cover_source TEXT"],
+    ["cover_license", "ALTER TABLE articles ADD COLUMN cover_license TEXT"],
+    ["cover_obtained_at", "ALTER TABLE articles ADD COLUMN cover_obtained_at TEXT"],
+    ["cover_usage_note", "ALTER TABLE articles ADD COLUMN cover_usage_note TEXT"],
+    ["cover_ai_generated", "ALTER TABLE articles ADD COLUMN cover_ai_generated INTEGER NOT NULL DEFAULT 0"],
   ];
   for (const [coluna, comando] of novas) {
     if (!columns.has(coluna)) await d1.prepare(comando).run();

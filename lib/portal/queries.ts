@@ -5,8 +5,9 @@
  * quando está `scheduled` e a data de publicação já passou. Isso faz o
  * agendamento funcionar sem precisar de cron.
  */
-import { and, desc, eq, inArray, like, lte, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, like, lte, ne, notInArray, or, sql } from "drizzle-orm";
 import { PUBLIC_STATUSES } from "./permissions";
+import { NOT_FEATURABLE } from "./classification";
 import { articleTags, articles, authors, categories, readerSavedArticles, tags } from "../../db/schema";
 import type { PortalDb } from "./db";
 
@@ -21,6 +22,7 @@ export type ArticleCard = {
   coverImageUrl: string | null;
   coverCredit: string | null;
   status: string;
+  classification: string;
   accessLevel: string;
   origin: string;
   aiAssisted: number;
@@ -39,6 +41,9 @@ export type ArticleCard = {
 
 export type ArticleFull = ArticleCard & {
   content: string;
+  coverSource: string | null;
+  coverLicense: string | null;
+  coverAiGenerated: number;
   authorBio: string | null;
   categoryId: string | null;
   authorId: string | null;
@@ -52,6 +57,7 @@ const cardColumns = {
   coverImageUrl: articles.coverImageUrl,
   coverCredit: articles.coverCredit,
   status: articles.status,
+  classification: articles.classification,
   accessLevel: articles.accessLevel,
   origin: articles.origin,
   aiAssisted: articles.aiAssisted,
@@ -137,13 +143,18 @@ export async function countPublished(
 
 /** Matéria marcada como destaque; se não houver, cai na mais recente. */
 export async function getFeatured(db: PortalDb): Promise<ArticleCard | null> {
+  // Material pago e comunicado de assessoria nunca ocupam a manchete: seria
+  // exatamente "apresentar como notícia" o que não é notícia.
   const [flagged] = await baseSelect(db)
-    .where(and(visible(), eq(articles.featured, 1)))
+    .where(and(visible(), eq(articles.featured, 1), notInArray(articles.classification, NOT_FEATURABLE)))
     .orderBy(desc(articles.publishedAt))
     .limit(1);
   if (flagged) return flagged;
 
-  const [latest] = await listPublished(db, { limit: 1 });
+  const [latest] = await baseSelect(db)
+    .where(and(visible(), notInArray(articles.classification, NOT_FEATURABLE)))
+    .orderBy(desc(articles.publishedAt), desc(articles.createdAt))
+    .limit(1);
   return latest ?? null;
 }
 
@@ -152,6 +163,9 @@ export async function getArticleBySlug(db: PortalDb, slug: string): Promise<Arti
     .select({
       ...cardColumns,
       content: articles.content,
+      coverSource: articles.coverSource,
+      coverLicense: articles.coverLicense,
+      coverAiGenerated: articles.coverAiGenerated,
       categoryId: articles.categoryId,
       authorId: articles.authorId,
       authorBio: authors.bio,
@@ -169,6 +183,9 @@ export async function getArticleById(db: PortalDb, id: string): Promise<ArticleF
     .select({
       ...cardColumns,
       content: articles.content,
+      coverSource: articles.coverSource,
+      coverLicense: articles.coverLicense,
+      coverAiGenerated: articles.coverAiGenerated,
       categoryId: articles.categoryId,
       authorId: articles.authorId,
       authorBio: authors.bio,

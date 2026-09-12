@@ -3,6 +3,7 @@ import type { ArticleCard as ArticleCardData } from "../../lib/portal/queries";
 import { formatDate } from "../../lib/portal/format";
 import { BRAND } from "../../lib/portal/brand";
 import { Img, ImgPlaceholder } from "./Img";
+import { ClassificationTag } from "./ClassificationTag";
 
 type Variant = "default" | "lead" | "slim";
 
@@ -44,6 +45,7 @@ export function ArticleCard({
           {article.accessLevel === "registered" ? (
             <span className="dm-kicker dm-kicker-exclusive">Exclusiva</span>
           ) : null}
+          <ClassificationTag classification={article.classification} />
         </span>
         <h3 className="dm-card-title">
           <Link href={href}>{article.title}</Link>

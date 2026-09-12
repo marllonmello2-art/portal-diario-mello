@@ -4,6 +4,11 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { renderMarkdown } from "../../lib/portal/markdown";
+import {
+  CLASSIFICATIONS,
+  CLASSIFICATION_HINT,
+  CLASSIFICATION_LABEL,
+} from "../../lib/portal/classification";
 import { requestJson } from "../../lib/portal/http";
 import { Img } from "../portal/Img";
 
@@ -25,6 +30,12 @@ export type EditorArticle = {
   publishedAt: string | null;
   origin: string;
   aiAssisted: number;
+  classification: string;
+  coverSource: string | null;
+  coverLicense: string | null;
+  coverObtainedAt: string | null;
+  coverUsageNote: string | null;
+  coverAiGenerated: number;
 };
 
 /**
@@ -60,6 +71,12 @@ export function ArticleEditor({
   const [tags, setTags] = useState((initialTags ?? []).join(", "));
   const [featured, setFeatured] = useState(Boolean(article?.featured));
   const [accessLevel, setAccessLevel] = useState(article?.accessLevel ?? "public");
+  const [classification, setClassification] = useState(article?.classification ?? "NOTICIA");
+  const [coverSource, setCoverSource] = useState(article?.coverSource ?? "");
+  const [coverLicense, setCoverLicense] = useState(article?.coverLicense ?? "");
+  const [coverObtainedAt, setCoverObtainedAt] = useState(article?.coverObtainedAt ?? "");
+  const [coverUsageNote, setCoverUsageNote] = useState(article?.coverUsageNote ?? "");
+  const [coverAiGenerated, setCoverAiGenerated] = useState(Boolean(article?.coverAiGenerated));
   const [tab, setTab] = useState<"editor" | "preview">("editor");
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
@@ -73,6 +90,13 @@ export function ArticleEditor({
       const form = new FormData();
       form.set("file", file);
       form.set("kind", "capa");
+      // A papelada de direitos viaja junto com o arquivo: o acervo nasce documentado.
+      form.set("credit", coverCredit);
+      form.set("source", coverSource);
+      form.set("license", coverLicense);
+      form.set("obtainedAt", coverObtainedAt);
+      form.set("usageNote", coverUsageNote);
+      form.set("aiGenerated", coverAiGenerated ? "1" : "0");
       const data = await requestJson<{ url?: string }>("/api/admin/upload", {
         method: "POST",
         body: form,
@@ -103,6 +127,12 @@ export function ArticleEditor({
       authorId: authorId || null,
       coverImageUrl: coverImageUrl || null,
       coverCredit: coverCredit || null,
+      coverSource: coverSource || null,
+      coverLicense: coverLicense || null,
+      coverObtainedAt: coverObtainedAt || null,
+      coverUsageNote: coverUsageNote || null,
+      coverAiGenerated,
+      classification,
       tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
       accessLevel,
       featured,
@@ -251,6 +281,23 @@ export function ArticleEditor({
             </div>
 
             <div className="dm-field">
+              <label htmlFor="dm-classificacao">O que é esta publicação</label>
+              <select
+                id="dm-classificacao"
+                value={classification}
+                disabled={readOnly}
+                onChange={(event) => setClassification(event.target.value)}
+              >
+                {CLASSIFICATIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {CLASSIFICATION_LABEL[item]}
+                  </option>
+                ))}
+              </select>
+              <small>{CLASSIFICATION_HINT[classification as keyof typeof CLASSIFICATION_HINT]}</small>
+            </div>
+
+            <div className="dm-field">
               <label htmlFor="dm-access">Quem pode ler</label>
               <select
                 id="dm-access"
@@ -313,14 +360,78 @@ export function ArticleEditor({
                 placeholder="https://…"
               />
             </div>
-            <div className="dm-field">
-              <label htmlFor="dm-cover-credit">Crédito da foto</label>
+            <label className="dm-check">
               <input
-                id="dm-cover-credit"
-                value={coverCredit}
-                onChange={(event) => setCoverCredit(event.target.value)}
-                placeholder="Foto: Nome do fotógrafo"
+                type="checkbox"
+                checked={coverAiGenerated}
+                disabled={readOnly}
+                onChange={(event) => setCoverAiGenerated(event.target.checked)}
               />
+              <span>Imagem ilustrativa gerada por IA</span>
+            </label>
+
+            {coverAiGenerated ? (
+              <p className="dm-note" style={{ color: "#6b7280" }}>
+                A capa será creditada como “Imagem ilustrativa gerada por IA”.
+              </p>
+            ) : (
+              <>
+                <div className="dm-field">
+                  <label htmlFor="dm-cover-credit">Crédito do autor *</label>
+                  <input
+                    id="dm-cover-credit"
+                    value={coverCredit}
+                    disabled={readOnly}
+                    onChange={(event) => setCoverCredit(event.target.value)}
+                    placeholder="Foto: Nome do fotógrafo"
+                  />
+                </div>
+
+                <div className="dm-field">
+                  <label htmlFor="dm-cover-source">Origem *</label>
+                  <input
+                    id="dm-cover-source"
+                    value={coverSource}
+                    disabled={readOnly}
+                    onChange={(event) => setCoverSource(event.target.value)}
+                    placeholder="Agência Brasil, arquivo pessoal, assessoria…"
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="dm-field">
+              <label htmlFor="dm-cover-license">Licença ou autorização</label>
+              <input
+                id="dm-cover-license"
+                value={coverLicense}
+                disabled={readOnly}
+                onChange={(event) => setCoverLicense(event.target.value)}
+                placeholder="CC BY 4.0, uso autorizado por e-mail, banco licenciado…"
+              />
+            </div>
+
+            <div className="dm-row">
+              <div className="dm-field">
+                <label htmlFor="dm-cover-obtained">Data de obtenção</label>
+                <input
+                  id="dm-cover-obtained"
+                  type="date"
+                  value={coverObtainedAt}
+                  disabled={readOnly}
+                  onChange={(event) => setCoverObtainedAt(event.target.value)}
+                />
+              </div>
+              <div className="dm-field">
+                <label htmlFor="dm-cover-note">Observação de uso</label>
+                <input
+                  id="dm-cover-note"
+                  value={coverUsageNote}
+                  disabled={readOnly}
+                  onChange={(event) => setCoverUsageNote(event.target.value)}
+                  placeholder="Restrições, prazo, obrigação de crédito"
+                />
+              </div>
             </div>
           </div>
         </aside>

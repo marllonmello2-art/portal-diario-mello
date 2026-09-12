@@ -16,7 +16,7 @@ export async function GET(request: Request) {
       title: `${BRAND.name} — API de publicação`,
       version: "1.0.0",
       description:
-        "Publica matérias no portal de notícias e lista editorias e autores válidos. Todas as rotas de escrita exigem o cabeçalho x-agent-api-key.",
+        "Envia matérias para a fila de revisão editorial do portal e lista editorias e autores válidos. A rota de escrita exige o cabeçalho x-agent-api-key. Nenhuma matéria enviada por aqui vai ao ar sem aprovação de um editor-chefe humano.",
     },
     servers: [{ url: origin }],
     security: [{ agentApiKey: [] }],
@@ -24,7 +24,9 @@ export async function GET(request: Request) {
       "/api/publish": {
         post: {
           operationId: "publishArticle",
-          summary: "Publica (ou salva como rascunho) uma matéria no portal.",
+          summary: "Envia uma matéria para a fila de revisão editorial.",
+          description:
+            "A matéria é gravada em EM_REVISAO, marcada como vinda de integração e com assistência de IA. Não existe forma de publicar por esta rota: quem leva ao ar é um editor-chefe, no painel.",
           security: [{ agentApiKey: [] }],
           requestBody: {
             required: true,
@@ -36,7 +38,7 @@ export async function GET(request: Request) {
           },
           responses: {
             "201": {
-              description: "Matéria criada.",
+              description: "Matéria criada na fila de revisão editorial.",
               content: {
                 "application/json": { schema: { $ref: "#/components/schemas/PublishResponse" } },
               },
@@ -119,11 +121,6 @@ export async function GET(request: Request) {
             tags: { type: "array", items: { type: "string" }, description: "Lista de tags." },
             cover_image_url: { type: "string", description: "URL da imagem de capa." },
             cover_credit: { type: "string", description: "Crédito da foto de capa." },
-            status: {
-              type: "string",
-              enum: ["draft", "published", "scheduled"],
-              default: "draft",
-            },
             access_level: {
               type: "string",
               enum: ["public", "registered"],
@@ -131,18 +128,16 @@ export async function GET(request: Request) {
               description:
                 "public: qualquer visitante lê. registered: só quem tem conta gratuita de leitor; os demais veem a abertura do texto e um convite para se cadastrar.",
             },
-            published_at: {
-              type: "string",
-              format: "date-time",
-              description: "Data de publicação (usada com status scheduled).",
-            },
-            featured: { type: "boolean", description: "Coloca a matéria como destaque da capa." },
           },
         },
         PublishResponse: {
           type: "object",
           properties: {
             ok: { type: "boolean" },
+            aviso: {
+              type: "string",
+              description: "Lembrete de que a matéria ficou aguardando revisão humana.",
+            },
             article: {
               type: "object",
               properties: {
@@ -150,15 +145,25 @@ export async function GET(request: Request) {
                 title: { type: "string" },
                 slug: { type: "string" },
                 subtitle: { type: ["string", "null"] },
-                status: { type: "string" },
+                status: {
+                  type: "string",
+                  description: "Sempre EM_REVISAO para matérias vindas de integração.",
+                },
+                status_descricao: { type: "string" },
                 access_level: { type: "string" },
                 category: { type: ["string", "null"] },
                 category_slug: { type: ["string", "null"] },
                 author: { type: ["string", "null"] },
                 cover_image_url: { type: ["string", "null"] },
-                published_at: { type: ["string", "null"] },
                 excerpt: { type: "string" },
-                url: { type: "string", description: "URL pública final da matéria." },
+                url_apos_publicacao: {
+                  type: "string",
+                  description: "Endereço que a matéria terá caso seja aprovada e publicada.",
+                },
+                painel: {
+                  type: "string",
+                  description: "Onde o editor revisa esta matéria.",
+                },
               },
             },
           },

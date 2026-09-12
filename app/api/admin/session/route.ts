@@ -4,6 +4,7 @@ import {
   clearedSessionCookie,
   createSessionToken,
   findAdminByEmail,
+  hashPassword,
   sessionCookie,
   sessionFromRequest,
   verifyPassword,
@@ -44,7 +45,13 @@ export async function POST(request: Request) {
   const user = await findAdminByEmail(db, email);
   // Mensagem genérica de propósito: não revelamos se o e-mail existe.
   const invalid = Response.json({ error: "E-mail ou senha incorretos." }, { status: 401 });
-  if (!user) return invalid;
+
+  if (!user) {
+    // Gasta o mesmo tempo de um login real. Sem isso, uma resposta instantânea
+    // entregaria quais e-mails estão cadastrados.
+    await hashPassword(password);
+    return invalid;
+  }
   if (!(await verifyPassword(password, user.passwordHash))) return invalid;
 
   await db

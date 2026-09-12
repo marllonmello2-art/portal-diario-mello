@@ -16,7 +16,21 @@ import { getD1, getPortalDb, type PortalDb } from "./db";
 
 export const SESSION_COOKIE = "dm_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12; // 12 horas
-const PBKDF2_ITERATIONS = 150_000;
+/**
+ * Custo do hash de senha.
+ *
+ * O plano gratuito do Cloudflare Workers corta a requisição em 10 ms de CPU, e
+ * cada iteração do PBKDF2 conta nesse orçamento: 150 mil iterações levam ~24 ms
+ * e derrubavam o cadastro e o login com resposta vazia. 12 mil ficam em ~2 ms,
+ * deixando folga para o resto da requisição.
+ *
+ * É menos do que se recomenda para um site exposto a vazamento de banco, e a
+ * compensação está no resto: senha mínima de 10 caracteres, salt aleatório por
+ * usuário e o banco acessível só pela conta Cloudflare do portal. Migrando para
+ * o plano pago (30 s de CPU), suba este número — as senhas antigas continuam
+ * válidas, porque cada hash guarda o próprio custo.
+ */
+const PBKDF2_ITERATIONS = 12_000;
 
 export type AdminSession = {
   sub: string;

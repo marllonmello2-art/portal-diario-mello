@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BRAND } from "../../lib/portal/brand";
+import { requestJson } from "../../lib/portal/http";
 
 /**
  * Login do painel — e, no primeiro acesso (nenhum admin cadastrado),
@@ -22,13 +23,11 @@ export function LoginForm({ needsSetup, returnTo }: { needsSetup: boolean; retur
     setError("");
     try {
       const endpoint = needsSetup ? "/api/admin/setup" : "/api/admin/session";
-      const response = await fetch(endpoint, {
+      await requestJson(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(needsSetup ? { email, password, name } : { email, password }),
       });
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(data.error ?? "Não foi possível entrar.");
       router.replace(returnTo);
       router.refresh();
     } catch (cause) {

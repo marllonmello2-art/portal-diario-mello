@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { BRAND } from "../../lib/portal/brand";
+import { requestJson } from "../../lib/portal/http";
 
 /** Captura de e-mails da newsletter (salva em `newsletter_subscribers`). */
 export function Newsletter() {
@@ -13,13 +14,11 @@ export function Newsletter() {
     event.preventDefault();
     setState("sending");
     try {
-      const response = await fetch("/api/newsletter", {
+      await requestJson("/api/newsletter", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(data.error ?? "Não foi possível concluir o cadastro.");
       setState("done");
       setMessage("Pronto! Você vai receber o resumo do dia no seu e-mail.");
       setEmail("");

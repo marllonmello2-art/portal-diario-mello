@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { renderMarkdown } from "../../lib/portal/markdown";
+import { requestJson } from "../../lib/portal/http";
 import { toLocalInput } from "../../lib/portal/format";
 import { Img } from "../portal/Img";
 
@@ -67,9 +68,11 @@ export function ArticleEditor({
       const form = new FormData();
       form.set("file", file);
       form.set("kind", "capa");
-      const response = await fetch("/api/admin/upload", { method: "POST", body: form });
-      const data = (await response.json()) as { url?: string; error?: string };
-      if (!response.ok || !data.url) throw new Error(data.error ?? "Falha no upload.");
+      const data = await requestJson<{ url?: string }>("/api/admin/upload", {
+        method: "POST",
+        body: form,
+      });
+      if (!data.url) throw new Error("Falha no upload.");
       setCoverImageUrl(data.url);
       setMessage({ type: "ok", text: "Imagem de capa enviada." });
     } catch (error) {
@@ -106,7 +109,7 @@ export function ArticleEditor({
     };
 
     try {
-      const response = await fetch(
+      const data = await requestJson<{ article?: { id: string } }>(
         article ? `/api/admin/articles/${article.id}` : "/api/admin/articles",
         {
           method: article ? "PATCH" : "POST",
@@ -114,8 +117,6 @@ export function ArticleEditor({
           body: JSON.stringify(payload),
         },
       );
-      const data = (await response.json()) as { error?: string; article?: { id: string } };
-      if (!response.ok) throw new Error(data.error ?? "Não foi possível salvar.");
 
       if (!article && data.article?.id) {
         router.replace(`/admin/materias/${data.article.id}`);

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { requestJson } from "../../lib/portal/http";
 
 export type CategoryRow = { id: string; name: string; slug: string; color: string; position: number };
 
@@ -17,9 +18,7 @@ export function CategoryManager({ categories }: { categories: CategoryRow[] }) {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(input, init);
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(data.error ?? "Não foi possível salvar.");
+      await requestJson(input, init);
       router.refresh();
       return true;
     } catch (cause) {

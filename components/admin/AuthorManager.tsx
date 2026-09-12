@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { requestJson } from "../../lib/portal/http";
 import { Img } from "../portal/Img";
 
 export type AuthorRow = {
@@ -24,9 +25,7 @@ export function AuthorManager({ authors }: { authors: AuthorRow[] }) {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(input, init);
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(data.error ?? "Não foi possível salvar.");
+      await requestJson(input, init);
       router.refresh();
       return true;
     } catch (cause) {
@@ -101,9 +100,15 @@ function AuthorCard({
     const form = new FormData();
     form.set("file", file);
     form.set("kind", "autor");
-    const response = await fetch("/api/admin/upload", { method: "POST", body: form });
-    const data = (await response.json()) as { url?: string };
-    if (data.url) setDraft((current) => ({ ...current, avatarUrl: data.url as string }));
+    try {
+      const data = await requestJson<{ url?: string }>("/api/admin/upload", {
+        method: "POST",
+        body: form,
+      });
+      if (data.url) setDraft((current) => ({ ...current, avatarUrl: data.url as string }));
+    } catch {
+      /* o erro aparece na próxima tentativa de salvar */
+    }
     setUploading(false);
   }
 

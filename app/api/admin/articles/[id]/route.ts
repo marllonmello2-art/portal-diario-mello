@@ -38,6 +38,7 @@ export async function PATCH(request: Request, { params }: Context) {
     coverCredit: body.coverCredit === undefined ? undefined : (body.coverCredit as string | null),
     tags: Array.isArray(body.tags) ? (body.tags as string[]) : undefined,
     status: body.status === undefined ? undefined : String(body.status),
+    accessLevel: body.accessLevel === undefined ? undefined : String(body.accessLevel),
     publishedAt: body.publishedAt === undefined ? undefined : (body.publishedAt as string | null),
     featured: body.featured === undefined ? undefined : Boolean(body.featured),
   });

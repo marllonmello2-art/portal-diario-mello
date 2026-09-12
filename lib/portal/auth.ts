@@ -38,6 +38,8 @@ export type AdminSession = {
   role: string;
   name: string | null;
   exp: number;
+  /** Público do token: separa a sessão do painel da sessão do leitor. */
+  aud?: "admin" | "reader";
 };
 
 /* ----------------------------- utilidades ----------------------------- */
@@ -163,51 +165,74 @@ async function hmac(payload: string): Promise<Uint8Array> {
   return new Uint8Array(signature);
 }
 
-export async function createSessionToken(
-  user: { id: string; email: string; role: string; name: string | null },
-): Promise<string> {
-  const session: AdminSession = {
-    sub: user.id,
-    email: user.email,
-    role: user.role,
-    name: user.name,
-    exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
-  };
-  const payload = toBase64Url(new TextEncoder().encode(JSON.stringify(session)));
-  return `${payload}.${toBase64Url(await hmac(payload))}`;
+/** Assina qualquer payload com o segredo do portal (HMAC-SHA256). */
+export async function signToken(payload: Record<string, unknown>): Promise<string> {
+  const encoded = toBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
+  return `${encoded}.${toBase64Url(await hmac(encoded))}`;
 }
 
-export async function readSessionToken(token: string | undefined): Promise<AdminSession | null> {
+/** Confere a assinatura e a validade; devolve null para qualquer inconsistência. */
+export async function readToken<T extends { sub?: string; exp?: number }>(
+  token: string | undefined,
+): Promise<T | null> {
   if (!token) return null;
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
 
   try {
     if (!timingSafeEqual(await hmac(payload), fromBase64Url(signature))) return null;
-    const session = JSON.parse(new TextDecoder().decode(fromBase64Url(payload))) as AdminSession;
-    if (!session?.sub || session.exp * 1000 < Date.now()) return null;
-    return session;
+    const parsed = JSON.parse(new TextDecoder().decode(fromBase64Url(payload))) as T;
+    if (!parsed?.sub || !parsed.exp || parsed.exp * 1000 < Date.now()) return null;
+    return parsed;
   } catch {
     return null;
   }
 }
 
-export function sessionCookie(token: string): string {
+export async function createSessionToken(
+  user: { id: string; email: string; role: string; name: string | null },
+): Promise<string> {
+  return signToken({
+    sub: user.id,
+    email: user.email,
+    role: user.role,
+    name: user.name,
+    aud: "admin",
+    exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
+  });
+}
+
+export async function readSessionToken(token: string | undefined): Promise<AdminSession | null> {
+  const session = await readToken<AdminSession>(token);
+  // Um token de leitor nunca pode valer como sessão do painel.
+  if (!session || session.aud !== "admin") return null;
+  return session;
+}
+
+export function buildCookie(name: string, token: string, maxAgeSeconds: number): string {
   return [
-    `${SESSION_COOKIE}=${token}`,
+    `${name}=${token}`,
     "Path=/",
     "HttpOnly",
     "Secure",
     "SameSite=Lax",
-    `Max-Age=${SESSION_TTL_SECONDS}`,
+    `Max-Age=${maxAgeSeconds}`,
   ].join("; ");
 }
 
-export function clearedSessionCookie(): string {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+export function clearCookie(name: string): string {
+  return `${name}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
 }
 
-function cookieFromHeader(header: string | null, name: string): string | undefined {
+export function sessionCookie(token: string): string {
+  return buildCookie(SESSION_COOKIE, token, SESSION_TTL_SECONDS);
+}
+
+export function clearedSessionCookie(): string {
+  return clearCookie(SESSION_COOKIE);
+}
+
+export function cookieFromHeader(header: string | null, name: string): string | undefined {
   if (!header) return undefined;
   for (const part of header.split(";")) {
     const [key, ...rest] = part.trim().split("=");

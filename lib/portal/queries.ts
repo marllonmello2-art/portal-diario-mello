@@ -6,7 +6,7 @@
  * agendamento funcionar sem precisar de cron.
  */
 import { and, desc, eq, inArray, like, lte, ne, or, sql } from "drizzle-orm";
-import { articleTags, articles, authors, categories, tags } from "../../db/schema";
+import { articleTags, articles, authors, categories, readerSavedArticles, tags } from "../../db/schema";
 import type { PortalDb } from "./db";
 
 export type Category = typeof categories.$inferSelect;
@@ -20,6 +20,7 @@ export type ArticleCard = {
   coverImageUrl: string | null;
   coverCredit: string | null;
   status: string;
+  accessLevel: string;
   featured: number;
   publishedAt: string | null;
   updatedAt: string;
@@ -47,6 +48,7 @@ const cardColumns = {
   coverImageUrl: articles.coverImageUrl,
   coverCredit: articles.coverCredit,
   status: articles.status,
+  accessLevel: articles.accessLevel,
   featured: articles.featured,
   publishedAt: articles.publishedAt,
   updatedAt: articles.updatedAt,
@@ -238,6 +240,35 @@ export async function homeSections(
     })),
   );
   return sections.filter((section) => section.articles.length > 0);
+}
+
+/* --------------------------- leitores logados -------------------------- */
+
+/** Matérias que o leitor salvou, mais recentes primeiro. */
+export async function savedArticles(db: PortalDb, readerId: string): Promise<ArticleCard[]> {
+  return db
+    .select(cardColumns)
+    .from(readerSavedArticles)
+    .innerJoin(articles, eq(readerSavedArticles.articleId, articles.id))
+    .leftJoin(categories, eq(articles.categoryId, categories.id))
+    .leftJoin(authors, eq(articles.authorId, authors.id))
+    .where(eq(readerSavedArticles.readerId, readerId))
+    .orderBy(desc(readerSavedArticles.createdAt))
+    .limit(100);
+}
+
+/** Diz se uma matéria específica está salva por este leitor. */
+export async function isArticleSaved(
+  db: PortalDb,
+  readerId: string,
+  articleId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ articleId: readerSavedArticles.articleId })
+    .from(readerSavedArticles)
+    .where(and(eq(readerSavedArticles.readerId, readerId), eq(readerSavedArticles.articleId, articleId)))
+    .limit(1);
+  return Boolean(row);
 }
 
 /** Lista do painel: todos os status, com filtros opcionais. */

@@ -124,6 +124,11 @@ export default async function AdminHome({
                       Destaque
                     </span>
                   ) : null}
+                  {article.accessLevel === "registered" ? (
+                    <span className="dm-badge dm-badge-exclusive" style={{ marginLeft: 8 }}>
+                      Exclusiva
+                    </span>
+                  ) : null}
                 </td>
                 <td>{article.categoryName ?? "—"}</td>
                 <td>{article.authorName ?? "—"}</td>

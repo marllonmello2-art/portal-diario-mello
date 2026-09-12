@@ -31,15 +31,20 @@ export function ArticleCard({
         )}
       </Link>
       <div className="dm-card-body">
-        {article.categoryName ? (
-          <Link
-            href={`/editoria/${article.categorySlug}`}
-            className="dm-kicker"
-            style={{ color: article.categoryColor ?? undefined }}
-          >
-            {article.categoryName}
-          </Link>
-        ) : null}
+        <span className="dm-card-kickers">
+          {article.categoryName ? (
+            <Link
+              href={`/editoria/${article.categorySlug}`}
+              className="dm-kicker"
+              style={{ color: article.categoryColor ?? undefined }}
+            >
+              {article.categoryName}
+            </Link>
+          ) : null}
+          {article.accessLevel === "registered" ? (
+            <span className="dm-kicker dm-kicker-exclusive">Exclusiva</span>
+          ) : null}
+        </span>
         <h3 className="dm-card-title">
           <Link href={href}>{article.title}</Link>
         </h3>

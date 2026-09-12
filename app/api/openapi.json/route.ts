@@ -124,6 +124,13 @@ export async function GET(request: Request) {
               enum: ["draft", "published", "scheduled"],
               default: "draft",
             },
+            access_level: {
+              type: "string",
+              enum: ["public", "registered"],
+              default: "public",
+              description:
+                "public: qualquer visitante lê. registered: só quem tem conta gratuita de leitor; os demais veem a abertura do texto e um convite para se cadastrar.",
+            },
             published_at: {
               type: "string",
               format: "date-time",
@@ -144,6 +151,7 @@ export async function GET(request: Request) {
                 slug: { type: "string" },
                 subtitle: { type: ["string", "null"] },
                 status: { type: "string" },
+                access_level: { type: "string" },
                 category: { type: ["string", "null"] },
                 category_slug: { type: ["string", "null"] },
                 author: { type: ["string", "null"] },

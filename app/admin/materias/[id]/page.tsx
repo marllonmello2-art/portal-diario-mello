@@ -48,6 +48,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
           categoryId: article.categoryId,
           authorId: article.authorId,
           status: article.status,
+          accessLevel: article.accessLevel,
           featured: article.featured,
           publishedAt: article.publishedAt,
         }}

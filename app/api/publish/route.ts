@@ -26,6 +26,7 @@ type PublishBody = {
   cover_image_url?: string;
   cover_credit?: string;
   status?: string;
+  access_level?: string;
   published_at?: string;
   featured?: boolean;
 };
@@ -105,6 +106,7 @@ export async function POST(request: Request) {
     coverCredit: body.cover_credit ?? null,
     tags: Array.isArray(body.tags) ? body.tags.filter((tag) => typeof tag === "string") : [],
     status,
+    accessLevel: body.access_level ?? null,
     publishedAt: body.published_at ?? null,
     featured: Boolean(body.featured),
   });
@@ -126,6 +128,7 @@ export async function POST(request: Request) {
         slug: article.slug,
         subtitle: article.subtitle,
         status: article.status,
+        access_level: article.accessLevel,
         category: article.categoryName,
         category_slug: article.categorySlug,
         author: article.authorName,

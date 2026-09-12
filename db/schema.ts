@@ -38,6 +38,12 @@ export const articles = sqliteTable("articles", {
   authorId: text("author_id").references(() => authors.id),
   /** draft | published | scheduled */
   status: text("status").notNull().default("draft"),
+  /**
+   * Quem pode ler o texto completo:
+   * `public` — qualquer visitante;
+   * `registered` — só quem tem conta gratuita de leitor.
+   */
+  accessLevel: text("access_level").notNull().default("public"),
   /** Destaque principal da home (hero). */
   featured: integer("featured").notNull().default(0),
   publishedAt: text("published_at"),
@@ -80,6 +86,27 @@ export const newsletterSubscribers = sqliteTable("newsletter_subscribers", {
   source: text("source").notNull().default("site"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+/** Contas gratuitas de leitor (diferentes dos usuários do painel). */
+export const readers = sqliteTable("readers", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  lastLoginAt: text("last_login_at"),
+});
+
+/** Matérias que o leitor salvou para ler depois. */
+export const readerSavedArticles = sqliteTable(
+  "reader_saved_articles",
+  {
+    readerId: text("reader_id").notNull().references(() => readers.id, { onDelete: "cascade" }),
+    articleId: text("article_id").notNull().references(() => articles.id, { onDelete: "cascade" }),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [primaryKey({ columns: [table.readerId, table.articleId] })],
+);
 
 /** Configurações internas (ex.: segredo de assinatura das sessões). */
 export const portalSettings = sqliteTable("portal_settings", {

@@ -21,6 +21,7 @@ export type EditorArticle = {
   categoryId: string | null;
   authorId: string | null;
   status: string;
+  accessLevel: string;
   featured: number;
   publishedAt: string | null;
 };
@@ -52,6 +53,7 @@ export function ArticleEditor({
   const [coverCredit, setCoverCredit] = useState(article?.coverCredit ?? "");
   const [tags, setTags] = useState((initialTags ?? []).join(", "));
   const [featured, setFeatured] = useState(Boolean(article?.featured));
+  const [accessLevel, setAccessLevel] = useState(article?.accessLevel ?? "public");
   const [scheduleAt, setScheduleAt] = useState(
     article?.status === "scheduled" ? toLocalInput(article.publishedAt) : "",
   );
@@ -104,6 +106,7 @@ export function ArticleEditor({
       coverCredit: coverCredit || null,
       tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
       status,
+      accessLevel,
       publishedAt: status === "scheduled" ? new Date(scheduleAt).toISOString() : undefined,
       featured,
     };
@@ -240,6 +243,22 @@ export function ArticleEditor({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="dm-field">
+              <label htmlFor="dm-access">Quem pode ler</label>
+              <select
+                id="dm-access"
+                value={accessLevel}
+                onChange={(event) => setAccessLevel(event.target.value)}
+              >
+                <option value="public">Aberta — qualquer visitante</option>
+                <option value="registered">Exclusiva — só quem tem conta gratuita</option>
+              </select>
+              <small>
+                Na exclusiva, quem não tem conta vê os primeiros parágrafos e um convite para se
+                cadastrar.
+              </small>
             </div>
 
             <div className="dm-field">

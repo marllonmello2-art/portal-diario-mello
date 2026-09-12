@@ -186,6 +186,23 @@ export function excerpt(source: string, limit = 180): string {
   return `${text.slice(0, limit).replace(/\s+\S*$/, "")}…`;
 }
 
+/**
+ * Primeiros parágrafos do texto — o trecho que fica visível numa matéria
+ * exclusiva antes do convite para criar conta.
+ */
+export function leadParagraphs(source: string, count = 2): string {
+  const blocks = (source ?? "").replace(/\r\n/g, "\n").split(/\n\s*\n/);
+  const lead: string[] = [];
+  for (const block of blocks) {
+    if (lead.length >= count) break;
+    const clean = block.trim();
+    // Pula títulos e citações: queremos parágrafos de verdade na prévia.
+    if (!clean || clean.startsWith("#") || clean.startsWith(">")) continue;
+    lead.push(clean);
+  }
+  return lead.join("\n\n");
+}
+
 /** Tempo estimado de leitura, em minutos (200 palavras/min). */
 export function readingMinutes(source: string): number {
   const words = plainText(source).split(/\s+/).filter(Boolean).length;

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BRAND } from "../../lib/portal/brand";
 
 export type NavItem = { name: string; slug: string };
@@ -11,8 +12,23 @@ export type NavItem = { name: string; slug: string };
  * editorias. Em telas pequenas o menu vira um botão hambúrguer — por isso o
  * componente é client-side.
  */
-export function SiteHeader({ categories, today }: { categories: NavItem[]; today: string }) {
+export function SiteHeader({
+  categories,
+  today,
+  reader,
+}: {
+  categories: NavItem[];
+  today: string;
+  /** Leitor logado, ou null para visitante anônimo. */
+  reader: { name: string | null; email: string } | null;
+}) {
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  async function sairDaConta() {
+    await fetch("/api/leitor/sessao", { method: "DELETE" });
+    router.refresh();
+  }
 
   return (
     <header>
@@ -21,8 +37,22 @@ export function SiteHeader({ categories, today }: { categories: NavItem[]; today
           <span className="dm-topbar-date">{today}</span>
           <div className="dm-topbar-links">
             <Link href="/sobre">Quem somos</Link>
-            <Link href="/contato">Contato</Link>
-            <Link href="/admin">Painel</Link>
+            {reader ? (
+              <>
+                <Link href="/minhas-leituras">Minhas leituras</Link>
+                <span className="dm-topbar-user">{reader.name || reader.email}</span>
+                <button type="button" className="dm-linkish" onClick={() => void sairDaConta()}>
+                  Sair
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/entrar">Entrar</Link>
+                <Link href="/criar-conta" className="dm-topbar-cta">
+                  Criar conta
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -80,6 +110,19 @@ export function SiteHeader({ categories, today }: { categories: NavItem[]; today
               Capa
             </Link>
           </li>
+          {reader ? (
+            <li>
+              <Link href="/minhas-leituras" onClick={() => setMenuOpen(false)}>
+                Minhas leituras
+              </Link>
+            </li>
+          ) : (
+            <li>
+              <Link href="/criar-conta" onClick={() => setMenuOpen(false)}>
+                Criar conta gratuita
+              </Link>
+            </li>
+          )}
           {categories.map((category) => (
             <li key={category.slug}>
               <Link href={`/editoria/${category.slug}`} onClick={() => setMenuOpen(false)}>

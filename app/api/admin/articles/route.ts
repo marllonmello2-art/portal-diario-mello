@@ -45,6 +45,7 @@ export async function POST(request: Request) {
     coverCredit: (body.coverCredit as string) ?? null,
     tags: Array.isArray(body.tags) ? (body.tags as string[]) : [],
     status: (body.status as string) ?? "draft",
+    accessLevel: (body.accessLevel as string) ?? "public",
     publishedAt: (body.publishedAt as string) ?? null,
     featured: Boolean(body.featured),
   });

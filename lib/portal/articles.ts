@@ -22,9 +22,16 @@ export type ArticleInput = {
   coverCredit?: string | null;
   tags?: string[];
   status?: string | null;
+  /** `public` (padrão) ou `registered`, para matéria só de quem tem conta. */
+  accessLevel?: string | null;
   publishedAt?: string | null;
   featured?: boolean;
 };
+
+/** Só dois níveis por enquanto; qualquer outro valor vira conteúdo aberto. */
+export function normalizeAccessLevel(value: string | null | undefined): "public" | "registered" {
+  return value === "registered" ? "registered" : "public";
+}
 
 export function normalizeStatus(value: string | null | undefined): ArticleStatus {
   if (value === "published" || value === "scheduled") return value;
@@ -122,6 +129,7 @@ export async function createArticle(db: PortalDb, input: ArticleInput) {
     categoryId: await resolveCategoryId(db, input),
     authorId: await resolveAuthorId(db, input),
     status,
+    accessLevel: normalizeAccessLevel(input.accessLevel),
     featured: input.featured ? 1 : 0,
     publishedAt: publishedAtFor(status, input.publishedAt),
     createdAt: now,
@@ -162,6 +170,10 @@ export async function updateArticle(db: PortalDb, id: string, input: Partial<Art
           ? current.authorId
           : await resolveAuthorId(db, input),
       status,
+      accessLevel:
+        input.accessLevel === undefined
+          ? current.accessLevel
+          : normalizeAccessLevel(input.accessLevel),
       featured: input.featured === undefined ? current.featured : input.featured ? 1 : 0,
       publishedAt:
         input.publishedAt === undefined && status === current.status

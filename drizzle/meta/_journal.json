@@ -8,6 +8,13 @@
       "when": 1789201782022,
       "tag": "0000_portal_diario_mello",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789205623581,
+      "tag": "0001_contas_de_leitor",
+      "breakpoints": true
     }
   ]
 }

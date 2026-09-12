@@ -111,6 +111,20 @@ const DDL = [
     source TEXT NOT NULL DEFAULT 'site',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS readers (
+    id TEXT PRIMARY KEY NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_login_at TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS reader_saved_articles (
+    reader_id TEXT NOT NULL,
+    article_id TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (reader_id, article_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS portal_settings (
     key TEXT PRIMARY KEY NOT NULL,
     value TEXT NOT NULL,
@@ -137,6 +151,7 @@ export function ensurePortalSchema(d1: D1Database): Promise<void> {
   if (!bootstrapPromise) {
     bootstrapPromise = (async () => {
       await d1.batch(DDL.map((statement) => d1.prepare(statement)));
+      await addMissingColumns(d1);
       await seed(d1);
     })().catch((error) => {
       // Uma falha não pode congelar o bootstrap para sempre: zera o cache
@@ -146,6 +161,23 @@ export function ensurePortalSchema(d1: D1Database): Promise<void> {
     });
   }
   return bootstrapPromise;
+}
+
+/**
+ * Colunas acrescentadas depois que o portal já estava no ar.
+ *
+ * O SQLite não tem `ADD COLUMN IF NOT EXISTS`, então conferimos antes no
+ * PRAGMA — assim um banco antigo ganha a coluna e um banco novo não quebra.
+ */
+async function addMissingColumns(d1: D1Database) {
+  const info = await d1.prepare("PRAGMA table_info(articles)").all<{ name: string }>();
+  const columns = new Set((info.results ?? []).map((column: { name: string }) => column.name));
+
+  if (!columns.has("access_level")) {
+    await d1
+      .prepare("ALTER TABLE articles ADD COLUMN access_level TEXT NOT NULL DEFAULT 'public'")
+      .run();
+  }
 }
 
 /** Seed idempotente: editorias, redação padrão e matérias de demonstração. */

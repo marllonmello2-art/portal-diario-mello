@@ -6,7 +6,7 @@ import { useState } from "react";
  * Botões de compartilhamento. A URL é montada no cliente (window.location)
  * para funcionar em qualquer domínio onde o portal estiver publicado.
  */
-export function ShareButtons({ title }: { title: string }) {
+export function ShareButtons({ title, extra }: { title: string; extra?: React.ReactNode }) {
   const [copied, setCopied] = useState(false);
 
   const currentUrl = () => (typeof window === "undefined" ? "" : window.location.href);
@@ -41,6 +41,7 @@ export function ShareButtons({ title }: { title: string }) {
       <button type="button" onClick={copyLink}>
         {copied ? "Link copiado ✓" : "Copiar link"}
       </button>
+      {extra}
     </div>
   );
 }

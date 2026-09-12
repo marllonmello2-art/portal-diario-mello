@@ -9,14 +9,18 @@ import { ShareButtons } from "../../../components/portal/ShareButtons";
 import { BRAND } from "../../../lib/portal/brand";
 import { getPortalDb } from "../../../lib/portal/db";
 import { formatDateTime } from "../../../lib/portal/format";
-import { excerpt, readingMinutes, renderMarkdown } from "../../../lib/portal/markdown";
+import { excerpt, leadParagraphs, readingMinutes, renderMarkdown } from "../../../lib/portal/markdown";
 import {
   getArticleBySlug,
   incrementViews,
+  isArticleSaved,
   isVisible,
   relatedArticles,
   tagsOfArticle,
 } from "../../../lib/portal/queries";
+import { AccessGate } from "../../../components/portal/AccessGate";
+import { SaveArticleButton } from "../../../components/portal/SaveArticleButton";
+import { currentReader } from "../../../lib/portal/session-server";
 
 export const dynamic = "force-dynamic";
 
@@ -65,10 +69,15 @@ export default async function ArticlePage({ params }: PageProps) {
   const article = await getArticleBySlug(db, slug);
   if (!article || !isVisible(article)) notFound();
 
-  const [tags, related] = await Promise.all([
+  const reader = await currentReader();
+  const [tags, related, saved] = await Promise.all([
     tagsOfArticle(db, article.id),
     relatedArticles(db, article, 4),
+    reader ? isArticleSaved(db, reader.sub, article.id) : Promise.resolve(false),
   ]);
+
+  // Matéria exclusiva + visitante sem conta: mostramos só a abertura do texto.
+  const restricted = article.accessLevel === "registered" && !reader;
 
   // Contador de visualizações: uma falha aqui nunca pode derrubar a página.
   try {
@@ -77,7 +86,9 @@ export default async function ArticlePage({ params }: PageProps) {
     /* contador é informativo, segue o jogo */
   }
 
-  const body = renderMarkdown(article.content);
+  const body = renderMarkdown(
+    restricted ? leadParagraphs(article.content, 2) : article.content,
+  );
   const minutes = readingMinutes(article.content);
 
   // Dados estruturados ajudam o Google a entender que isto é uma notícia.
@@ -90,6 +101,17 @@ export default async function ArticlePage({ params }: PageProps) {
     datePublished: article.publishedAt ?? article.updatedAt,
     dateModified: article.updatedAt,
     articleSection: article.categoryName ?? undefined,
+    // Sinaliza ao Google que parte do texto exige cadastro — é o formato que
+    // evita ser tratado como conteúdo escondido do buscador.
+    isAccessibleForFree: article.accessLevel === "registered" ? "False" : "True",
+    hasPart:
+      article.accessLevel === "registered"
+        ? {
+            "@type": "WebPageElement",
+            isAccessibleForFree: "False",
+            cssSelector: ".dm-prose",
+          }
+        : undefined,
     author: article.authorName ? { "@type": "Person", name: article.authorName } : undefined,
     publisher: { "@type": "Organization", name: BRAND.name },
   };
@@ -103,13 +125,18 @@ export default async function ArticlePage({ params }: PageProps) {
             dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
           />
 
-          {article.categoryName ? (
-            <Link href={`/editoria/${article.categorySlug}`}>
-              <span className="dm-kicker dm-kicker-block" style={{ background: article.categoryColor ?? undefined }}>
-                {article.categoryName}
-              </span>
-            </Link>
-          ) : null}
+          <div className="dm-article-kickers">
+            {article.categoryName ? (
+              <Link href={`/editoria/${article.categorySlug}`}>
+                <span className="dm-kicker dm-kicker-block" style={{ background: article.categoryColor ?? undefined }}>
+                  {article.categoryName}
+                </span>
+              </Link>
+            ) : null}
+            {article.accessLevel === "registered" ? (
+              <span className="dm-kicker dm-kicker-exclusive">Exclusiva</span>
+            ) : null}
+          </div>
 
           <h1 className="dm-article-title">{article.title}</h1>
           {article.subtitle ? <p className="dm-article-deck">{article.subtitle}</p> : null}
@@ -141,9 +168,26 @@ export default async function ArticlePage({ params }: PageProps) {
           ) : null}
 
           {/* O HTML vem do nosso renderizador de Markdown, que escapa a entrada. */}
-          <div className="dm-prose" dangerouslySetInnerHTML={{ __html: body }} />
+          <div
+            className={`dm-prose${restricted ? " dm-prose-preview" : ""}`}
+            dangerouslySetInnerHTML={{ __html: body }}
+          />
 
-          <ShareButtons title={article.title} />
+          {restricted ? (
+            <AccessGate returnTo={`/noticia/${article.slug}`} />
+          ) : (
+            <ShareButtons
+              title={article.title}
+              extra={
+                <SaveArticleButton
+                  articleId={article.id}
+                  articleSlug={article.slug}
+                  initialSaved={saved}
+                  loggedIn={Boolean(reader)}
+                />
+              }
+            />
+          )}
 
           {tags.length ? (
             <div className="dm-tags">

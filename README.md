@@ -52,6 +52,21 @@ e `npm run db:generate` (nova migration depois de mexer em `db/schema.ts`).
 Cada matéria publica suas próprias meta tags (Open Graph, Twitter Card) e dados
 estruturados `NewsArticle`.
 
+## Contas de leitor
+
+Qualquer pessoa lê o portal sem cadastro. A conta gratuita (`/criar-conta`,
+`/entrar`) acrescenta:
+
+- **Matérias exclusivas** — no editor, cada matéria escolhe entre *Aberta* e
+  *Exclusiva*. Na exclusiva, quem não tem conta vê os primeiros parágrafos e um
+  convite para se cadastrar; o JSON-LD marca o trecho fechado como manda o
+  Google, então não é conteúdo escondido do buscador.
+- **Salvar para ler depois** — botão na matéria e a página `/minhas-leituras`.
+
+A sessão do leitor usa um cookie próprio (`dm_leitor`, 30 dias) e um público
+diferente no token: uma sessão de leitor nunca abre o painel, e a do painel não
+vale como leitor.
+
 ## Painel do editor (`/admin`)
 
 Lista com filtros e contadores, editor em Markdown com pré-visualização, upload

@@ -1,6 +1,7 @@
 import { getPortalDb } from "../../lib/portal/db";
 import { listCategories } from "../../lib/portal/queries";
 import { formatToday } from "../../lib/portal/format";
+import { currentReader } from "../../lib/portal/session-server";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader, type NavItem } from "./SiteHeader";
 
@@ -13,10 +14,15 @@ export async function PortalShell({ children }: { children: React.ReactNode }) {
   const categories: NavItem[] = db
     ? (await listCategories(db)).map((category) => ({ name: category.name, slug: category.slug }))
     : [];
+  const reader = await currentReader();
 
   return (
     <div className="dm">
-      <SiteHeader categories={categories} today={formatToday()} />
+      <SiteHeader
+        categories={categories}
+        today={formatToday()}
+        reader={reader ? { name: reader.name, email: reader.email } : null}
+      />
       <main className="dm-main">{children}</main>
       <SiteFooter categories={categories} />
     </div>

@@ -80,3 +80,30 @@ test("as rotas do painel exigem sessão", async () => {
   assert.ok([302, 303, 307].includes(response.status));
   assert.match(response.headers.get("location") ?? "", /\/admin\/login/);
 });
+
+test("as páginas de conta do leitor respondem", async () => {
+  for (const path of ["/entrar", "/criar-conta"]) {
+    const response = await call(path, { headers: { accept: "text/html" } });
+    assert.equal(response.status, 200, path);
+    assert.match(await response.text(), /Criar conta gratuita/);
+  }
+});
+
+test("minhas leituras exige conta", async () => {
+  const response = await call("/minhas-leituras", {
+    headers: { accept: "text/html" },
+    redirect: "manual",
+  });
+  assert.ok([302, 303, 307].includes(response.status));
+  assert.match(response.headers.get("location") ?? "", /\/entrar/);
+});
+
+test("salvar matéria exige sessão de leitor", async () => {
+  const response = await call("/api/leitor/salvos", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ articleId: "qualquer" }),
+  });
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).code, "READER_AUTH_REQUIRED");
+});

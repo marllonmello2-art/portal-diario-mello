@@ -8,7 +8,6 @@ export async function GET(request: Request) {
     "Allow: /",
     "Disallow: /admin",
     "Disallow: /api/",
-    "Disallow: /marketlab",
     "Disallow: /busca",
     "",
     `Sitemap: ${origin}/sitemap.xml`,

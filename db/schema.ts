@@ -36,8 +36,12 @@ export const articles = sqliteTable("articles", {
   coverCredit: text("cover_credit"),
   categoryId: text("category_id").references(() => categories.id),
   authorId: text("author_id").references(() => authors.id),
-  /** draft | published | scheduled */
-  status: text("status").notNull().default("draft"),
+  /**
+   * Estado editorial: RASCUNHO, EM_APURACAO, EM_REDACAO, EM_REVISAO,
+   * EM_REVISAO_JURIDICA, APROVADA, AGENDADA, PUBLICADA, CORRIGIDA, ARQUIVADA.
+   * A máquina de estados vive em lib/portal/permissions.ts.
+   */
+  status: text("status").notNull().default("RASCUNHO"),
   /**
    * Quem pode ler o texto completo:
    * `public` — qualquer visitante;
@@ -50,6 +54,15 @@ export const articles = sqliteTable("articles", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   viewsCount: integer("views_count").notNull().default(0),
+  /** Usuário do painel dono da matéria (não confundir com a assinatura). */
+  createdByUserId: text("created_by_user_id"),
+  /** `painel` ou `integracao` — de onde o texto entrou no sistema. */
+  origin: text("origin").notNull().default("painel"),
+  /** Houve assistência de IA na produção? Registro interno, nunca público. */
+  aiAssisted: integer("ai_assisted").notNull().default(0),
+  approvedByUserId: text("approved_by_user_id"),
+  approvedAt: text("approved_at"),
+  publishedByUserId: text("published_by_user_id"),
 });
 
 export const tags = sqliteTable("tags", {
@@ -78,6 +91,48 @@ export const adminUsers = sqliteTable("admin_users", {
   role: text("role").notNull().default("editor"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   lastLoginAt: text("last_login_at"),
+});
+
+/**
+ * Papéis de cada pessoa do painel.
+ *
+ * É uma tabela à parte (e não uma coluna) porque uma pessoa acumula papéis:
+ * no Diário Mello, o dono é editor-chefe e administrador ao mesmo tempo.
+ */
+export const adminUserRoles = sqliteTable(
+  "admin_user_roles",
+  {
+    userId: text("user_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
+    /** AUTOR | EDITOR | EDITOR_CHEFE | ADMINISTRADOR */
+    role: text("role").notNull(),
+    grantedAt: text("granted_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.role] })],
+);
+
+/**
+ * Trilha de auditoria: quem fez o quê, quando.
+ *
+ * Toda mudança de status, login, criação, edição, aprovação, publicação e
+ * exclusão passa por aqui. Linhas nunca são alteradas nem apagadas.
+ */
+export const auditLog = sqliteTable("audit_log", {
+  id: text("id").primaryKey(),
+  at: text("at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  /** usuario | integracao | sistema | leitor */
+  actorKind: text("actor_kind").notNull().default("usuario"),
+  actorId: text("actor_id"),
+  actorLabel: text("actor_label"),
+  /** login, article.create, article.status, article.publish, ... */
+  action: text("action").notNull(),
+  entity: text("entity"),
+  entityId: text("entity_id"),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status"),
+  note: text("note"),
+  /** JSON com o que mais for relevante para aquele evento. */
+  metadata: text("metadata"),
+  ip: text("ip"),
 });
 
 export const newsletterSubscribers = sqliteTable("newsletter_subscribers", {

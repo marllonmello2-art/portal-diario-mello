@@ -1,31 +1,47 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { AdminShell } from "../../components/admin/AdminShell";
-import { ArticleRowActions } from "../../components/admin/ArticleRowActions";
 import { getPortalDb } from "../../lib/portal/db";
 import { formatShort } from "../../lib/portal/format";
 import { adminListArticles, listCategories } from "../../lib/portal/queries";
 import { requireAdmin } from "../../lib/portal/session-server";
+import {
+  AUTHORING_STATUSES,
+  PUBLIC_STATUSES,
+  STATUSES,
+  STATUS_LABEL,
+  canCreateArticle,
+  hasRole,
+} from "../../lib/portal/permissions";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Painel", robots: { index: false } };
 
-const STATUS_LABEL: Record<string, string> = {
-  published: "Publicada",
-  draft: "Rascunho",
-  scheduled: "Agendada",
+/** Cor da etiqueta por etapa do fluxo. */
+const STATUS_TOM: Record<string, string> = {
+  RASCUNHO: "rascunho",
+  EM_APURACAO: "producao",
+  EM_REDACAO: "producao",
+  EM_REVISAO: "revisao",
+  EM_REVISAO_JURIDICA: "revisao",
+  APROVADA: "aprovada",
+  AGENDADA: "agendada",
+  PUBLICADA: "publicada",
+  CORRIGIDA: "publicada",
+  ARQUIVADA: "arquivada",
 };
 
 /** Dashboard: lista de matérias com filtros por editoria e status. */
 export default async function AdminHome({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; editoria?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; editoria?: string; q?: string; sem_permissao?: string }>;
 }) {
   const session = await requireAdmin();
   const filters = await searchParams;
   const db = await getPortalDb();
+  const soVeOProprio = !hasRole(session, "EDITOR", "EDITOR_CHEFE", "ADMINISTRADOR");
 
   if (!db) {
     return (
@@ -43,39 +59,51 @@ export default async function AdminHome({
       status: filters.status || undefined,
       categoryId: filters.editoria || undefined,
       search: filters.q || undefined,
+      onlyAuthorUserId: soVeOProprio ? session.sub : undefined,
     }),
     listCategories(db),
   ]);
 
-  const published = articles.filter((article) => article.status === "published").length;
-  const drafts = articles.filter((article) => article.status === "draft").length;
-  const views = articles.reduce((total, article) => total + (article.viewsCount ?? 0), 0);
+  const noAr = articles.filter((article) => PUBLIC_STATUSES.includes(article.status as never)).length;
+  const emProducao = articles.filter((article) =>
+    AUTHORING_STATUSES.includes(article.status as never),
+  ).length;
+  const aguardando = articles.filter(
+    (article) => article.status === "EM_REVISAO" || article.status === "EM_REVISAO_JURIDICA",
+  ).length;
+  const aprovadas = articles.filter((article) => article.status === "APROVADA").length;
 
   return (
     <AdminShell user={session}>
       <div className="dm-admin-head">
         <h1>Matérias</h1>
-        <Link href="/admin/materias/nova" className="dm-btn">
-          + Nova matéria
-        </Link>
+        {canCreateArticle(session) ? (
+          <Link href="/admin/materias/nova" className="dm-btn">
+            + Nova matéria
+          </Link>
+        ) : null}
       </div>
+
+      {filters.sem_permissao ? (
+        <p className="dm-aviso">Seu perfil não tem acesso àquela área do painel.</p>
+      ) : null}
 
       <div className="dm-stat-row">
         <div className="dm-stat">
-          <strong>{articles.length}</strong>
-          <span>No filtro atual</span>
+          <strong>{emProducao}</strong>
+          <span>Em produção</span>
+        </div>
+        <div className="dm-stat dm-stat-atencao">
+          <strong>{aguardando}</strong>
+          <span>Aguardando revisão</span>
         </div>
         <div className="dm-stat">
-          <strong>{published}</strong>
-          <span>Publicadas</span>
+          <strong>{aprovadas}</strong>
+          <span>Aprovadas, prontas</span>
         </div>
         <div className="dm-stat">
-          <strong>{drafts}</strong>
-          <span>Rascunhos</span>
-        </div>
-        <div className="dm-stat">
-          <strong>{views.toLocaleString("pt-BR")}</strong>
-          <span>Visualizações</span>
+          <strong>{noAr}</strong>
+          <span>No ar</span>
         </div>
       </div>
 
@@ -84,10 +112,12 @@ export default async function AdminHome({
         <form className="dm-toolbar" method="get">
           <input type="search" name="q" placeholder="Buscar no título ou no texto" defaultValue={filters.q ?? ""} />
           <select name="status" defaultValue={filters.status ?? ""}>
-            <option value="">Todos os status</option>
-            <option value="published">Publicadas</option>
-            <option value="draft">Rascunhos</option>
-            <option value="scheduled">Agendadas</option>
+            <option value="">Todos os estados</option>
+            {STATUSES.map((estado) => (
+              <option key={estado} value={estado}>
+                {STATUS_LABEL[estado]}
+              </option>
+            ))}
           </select>
           <select name="editoria" defaultValue={filters.editoria ?? ""}>
             <option value="">Todas as editorias</option>
@@ -107,11 +137,10 @@ export default async function AdminHome({
             <tr>
               <th>Título</th>
               <th>Editoria</th>
-              <th>Autor</th>
-              <th>Status</th>
+              <th>Assinatura</th>
+              <th>Estado</th>
               <th>Atualizada</th>
               <th>Views</th>
-              <th aria-label="Ações" />
             </tr>
           </thead>
           <tbody>
@@ -129,24 +158,26 @@ export default async function AdminHome({
                       Exclusiva
                     </span>
                   ) : null}
+                  {article.origin === "integracao" || article.aiAssisted ? (
+                    <span className="dm-badge dm-badge-ia" style={{ marginLeft: 8 }} title="Texto com assistência de IA">
+                      IA
+                    </span>
+                  ) : null}
                 </td>
                 <td>{article.categoryName ?? "—"}</td>
                 <td>{article.authorName ?? "—"}</td>
                 <td>
-                  <span className={`dm-badge dm-badge-${article.status}`}>
-                    {STATUS_LABEL[article.status] ?? article.status}
+                  <span className={`dm-badge dm-badge-${STATUS_TOM[article.status] ?? "rascunho"}`}>
+                    {STATUS_LABEL[article.status as keyof typeof STATUS_LABEL] ?? article.status}
                   </span>
                 </td>
                 <td>{formatShort(article.updatedAt)}</td>
                 <td>{article.viewsCount}</td>
-                <td>
-                  <ArticleRowActions id={article.id} status={article.status} />
-                </td>
               </tr>
             ))}
             {articles.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ color: "#6b7280", padding: "26px 10px" }}>
+                <td colSpan={6} style={{ color: "#6b7280", padding: "26px 10px" }}>
                   Nenhuma matéria encontrada com esses filtros.
                 </td>
               </tr>

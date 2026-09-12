@@ -1,4 +1,4 @@
-import { sessionFromRequest, unauthorized } from "../../../../lib/portal/auth";
+import { guardAdmin, isResponse } from "../../../../lib/portal/api-guard";
 import { getBucket } from "../../../../lib/portal/db";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +32,8 @@ function sniff(bytes: Uint8Array): { mime: string; ext: string } | null {
 
 /** Upload de imagem (capa de matéria ou foto de autor) para o bucket R2. */
 export async function POST(request: Request) {
-  if (!(await sessionFromRequest(request))) return unauthorized();
+  const guard = await guardAdmin(request, "AUTOR", "EDITOR", "EDITOR_CHEFE");
+  if (isResponse(guard)) return guard;
 
   const bucket = await getBucket();
   if (!bucket) {

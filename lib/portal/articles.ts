@@ -4,11 +4,19 @@
  */
 import { eq } from "drizzle-orm";
 import { articles, authors, categories } from "../../db/schema";
+import { recordAudit, type AuditActor } from "./audit";
 import type { PortalDb } from "./db";
+import {
+  canTransition,
+  isStatus,
+  STATUS_LABEL,
+  type Actor,
+  type Status,
+} from "./permissions";
 import { getArticleById, syncArticleTags } from "./queries";
 import { slugify, uniqueSlug } from "./slug";
 
-export type ArticleStatus = "draft" | "published" | "scheduled";
+export type ArticleStatus = Status;
 
 export type ArticleInput = {
   title: string;
@@ -26,6 +34,11 @@ export type ArticleInput = {
   accessLevel?: string | null;
   publishedAt?: string | null;
   featured?: boolean;
+  /** Usuário do painel dono da matéria. */
+  createdByUserId?: string | null;
+  /** `painel` ou `integracao`. */
+  origin?: string | null;
+  aiAssisted?: boolean;
 };
 
 /** Só dois níveis por enquanto; qualquer outro valor vira conteúdo aberto. */
@@ -33,9 +46,9 @@ export function normalizeAccessLevel(value: string | null | undefined): "public"
   return value === "registered" ? "registered" : "public";
 }
 
-export function normalizeStatus(value: string | null | undefined): ArticleStatus {
-  if (value === "published" || value === "scheduled") return value;
-  return "draft";
+/** Qualquer valor desconhecido cai em RASCUNHO — nunca em um estado público. */
+export function normalizeStatus(value: string | null | undefined): Status {
+  return value && isStatus(value) ? value : "RASCUNHO";
 }
 
 /** Slug único para a matéria, derivado do título. */
@@ -103,8 +116,10 @@ export async function resolveAuthorId(
   return created.id;
 }
 
-function publishedAtFor(status: ArticleStatus, requested: string | null | undefined): string | null {
-  if (status === "draft") return requested ?? null;
+/** A data de publicação só é carimbada quando a matéria de fato vai ao ar. */
+function publishedAtFor(status: Status, requested: string | null | undefined): string | null {
+  const vaiAoAr = status === "PUBLICADA" || status === "AGENDADA" || status === "CORRIGIDA";
+  if (!vaiAoAr) return requested ?? null;
   if (requested) {
     const date = new Date(requested);
     if (!Number.isNaN(date.getTime())) return date.toISOString();
@@ -114,7 +129,10 @@ function publishedAtFor(status: ArticleStatus, requested: string | null | undefi
 
 /** Cria a matéria e devolve o registro completo já com editoria e autor. */
 export async function createArticle(db: PortalDb, input: ArticleInput) {
-  const status = normalizeStatus(input.status);
+  // Matéria nasce em produção. Ir além disso é mudança de estado, e mudança
+  // de estado passa pela máquina — inclusive para quem vem de integração.
+  const pedido = normalizeStatus(input.status);
+  const status: Status = pedido === "EM_REVISAO" ? "EM_REVISAO" : "RASCUNHO";
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
 
@@ -135,6 +153,9 @@ export async function createArticle(db: PortalDb, input: ArticleInput) {
     createdAt: now,
     updatedAt: now,
     viewsCount: 0,
+    createdByUserId: input.createdByUserId ?? null,
+    origin: input.origin === "integracao" ? "integracao" : "painel",
+    aiAssisted: input.aiAssisted ? 1 : 0,
   });
 
   if (input.tags?.length) await syncArticleTags(db, id, input.tags, slugify);
@@ -148,7 +169,6 @@ export async function updateArticle(db: PortalDb, id: string, input: Partial<Art
   const [current] = await db.select().from(articles).where(eq(articles.id, id)).limit(1);
   if (!current) return null;
 
-  const status = input.status === undefined ? (current.status as ArticleStatus) : normalizeStatus(input.status);
   const titleChanged = Boolean(input.title && input.title.trim() !== current.title);
 
   await db
@@ -169,16 +189,12 @@ export async function updateArticle(db: PortalDb, id: string, input: Partial<Art
         input.authorId === undefined && input.authorName === undefined
           ? current.authorId
           : await resolveAuthorId(db, input),
-      status,
       accessLevel:
         input.accessLevel === undefined
           ? current.accessLevel
           : normalizeAccessLevel(input.accessLevel),
       featured: input.featured === undefined ? current.featured : input.featured ? 1 : 0,
-      publishedAt:
-        input.publishedAt === undefined && status === current.status
-          ? current.publishedAt
-          : publishedAtFor(status, input.publishedAt ?? current.publishedAt),
+      publishedAt: input.publishedAt === undefined ? current.publishedAt : input.publishedAt,
       updatedAt: new Date().toISOString(),
     })
     .where(eq(articles.id, id));
@@ -192,6 +208,68 @@ export async function updateArticle(db: PortalDb, id: string, input: Partial<Art
 export async function deleteArticle(db: PortalDb, id: string) {
   await syncArticleTags(db, id, [], slugify);
   await db.delete(articles).where(eq(articles.id, id));
+}
+
+/* --------------------------- mudança de estado ------------------------- */
+
+export type TransitionResult =
+  | { ok: true; article: Awaited<ReturnType<typeof getArticleById>> }
+  | { ok: false; reason: string; code: "FORBIDDEN" | "NOT_FOUND" };
+
+/**
+ * Move a matéria de um estado para outro, validando a máquina de estados e
+ * registrando a auditoria.
+ *
+ * É o único caminho para uma matéria virar PUBLICADA — nem o editor de texto
+ * nem a rota de integração mexem em status por fora daqui.
+ */
+export async function transitionArticle(
+  db: PortalDb,
+  actor: Actor & { auditActor: AuditActor },
+  id: string,
+  to: Status,
+  options: { note?: string | null; scheduledFor?: string | null; ip?: string | null } = {},
+): Promise<TransitionResult> {
+  const [current] = await db.select().from(articles).where(eq(articles.id, id)).limit(1);
+  if (!current) return { ok: false, reason: "Matéria não encontrada.", code: "NOT_FOUND" };
+
+  const from = normalizeStatus(current.status);
+  const permitido = canTransition(actor, from, to);
+  if (!permitido.ok) return { ok: false, reason: permitido.reason, code: "FORBIDDEN" };
+
+  const agora = new Date().toISOString();
+  const mudancas: Record<string, unknown> = { status: to, updatedAt: agora };
+
+  if (to === "APROVADA") {
+    mudancas.approvedByUserId = actor.id ?? null;
+    mudancas.approvedAt = agora;
+  }
+  if (to === "PUBLICADA" || to === "CORRIGIDA") {
+    mudancas.publishedByUserId = actor.id ?? null;
+    mudancas.publishedAt = current.publishedAt ?? agora;
+  }
+  if (to === "AGENDADA") {
+    const quando = options.scheduledFor ? new Date(options.scheduledFor) : null;
+    if (!quando || Number.isNaN(quando.getTime())) {
+      return { ok: false, reason: "Informe a data e a hora do agendamento.", code: "FORBIDDEN" };
+    }
+    mudancas.publishedAt = quando.toISOString();
+  }
+
+  await db.update(articles).set(mudancas).where(eq(articles.id, id));
+
+  await recordAudit(db, actor.auditActor, {
+    action: "article.status",
+    entity: "article",
+    entityId: id,
+    fromStatus: from,
+    toStatus: to,
+    note: options.note ?? null,
+    metadata: { titulo: current.title, de: STATUS_LABEL[from], para: STATUS_LABEL[to] },
+    ip: options.ip ?? null,
+  });
+
+  return { ok: true, article: await getArticleById(db, id) };
 }
 
 /** Só uma matéria pode ocupar o destaque principal da capa. */

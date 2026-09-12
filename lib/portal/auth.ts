@@ -11,8 +11,9 @@
  * - O cookie é HttpOnly + SameSite=Lax + Secure, então não é legível por JS.
  */
 import { eq } from "drizzle-orm";
-import { adminUsers } from "../../db/schema";
+import { adminUserRoles, adminUsers } from "../../db/schema";
 import { getD1, getPortalDb, type PortalDb } from "./db";
+import { isRole, type Role } from "./permissions";
 
 export const SESSION_COOKIE = "dm_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12; // 12 horas
@@ -35,7 +36,10 @@ const PBKDF2_ITERATIONS = 12_000;
 export type AdminSession = {
   sub: string;
   email: string;
+  /** Papel antigo, mantido só para leitura de sessões emitidas antes da governança. */
   role: string;
+  /** Papéis da governança editorial. Uma pessoa pode acumular mais de um. */
+  roles: Role[];
   name: string | null;
   exp: number;
   /** Público do token: separa a sessão do painel da sessão do leitor. */
@@ -190,12 +194,13 @@ export async function readToken<T extends { sub?: string; exp?: number }>(
 }
 
 export async function createSessionToken(
-  user: { id: string; email: string; role: string; name: string | null },
+  user: { id: string; email: string; role: string; name: string | null; roles?: Role[] },
 ): Promise<string> {
   return signToken({
     sub: user.id,
     email: user.email,
     role: user.role,
+    roles: user.roles ?? [],
     name: user.name,
     aud: "admin",
     exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
@@ -206,7 +211,14 @@ export async function readSessionToken(token: string | undefined): Promise<Admin
   const session = await readToken<AdminSession>(token);
   // Um token de leitor nunca pode valer como sessão do painel.
   if (!session || session.aud !== "admin") return null;
-  return session;
+
+  // Sessões emitidas antes da governança não trazem `roles`: derivamos do
+  // papel antigo para a pessoa não ser expulsa do painel na virada.
+  const roles = Array.isArray(session.roles) ? session.roles.filter(isRole) : [];
+  return {
+    ...session,
+    roles: roles.length ? roles : session.role === "editor" ? ["EDITOR"] : ["EDITOR_CHEFE", "ADMINISTRADOR"],
+  };
 }
 
 export function buildCookie(name: string, token: string, maxAgeSeconds: number): string {
@@ -270,9 +282,35 @@ export async function findAdminByEmail(db: PortalDb, email: string) {
   return row ?? null;
 }
 
+/** Papéis de uma pessoa do painel. */
+export async function rolesOfUser(db: PortalDb, userId: string): Promise<Role[]> {
+  const rows = await db
+    .select({ role: adminUserRoles.role })
+    .from(adminUserRoles)
+    .where(eq(adminUserRoles.userId, userId));
+  return rows.map((row) => row.role).filter(isRole);
+}
+
+/** Substitui o conjunto de papéis de uma pessoa. */
+export async function setUserRoles(db: PortalDb, userId: string, roles: Role[]): Promise<void> {
+  await db.delete(adminUserRoles).where(eq(adminUserRoles.userId, userId));
+  const unicos = [...new Set(roles)].filter(isRole);
+  if (!unicos.length) return;
+  await db
+    .insert(adminUserRoles)
+    .values(unicos.map((role) => ({ userId, role, grantedAt: new Date().toISOString() })))
+    .onConflictDoNothing();
+}
+
 export async function createAdmin(
   db: PortalDb,
-  input: { email: string; password: string; name?: string | null; role?: string },
+  input: {
+    email: string;
+    password: string;
+    name?: string | null;
+    role?: string;
+    roles?: Role[];
+  },
 ) {
   const user = {
     id: crypto.randomUUID(),
@@ -282,6 +320,10 @@ export async function createAdmin(
     role: input.role === "editor" ? "editor" : "admin",
   };
   await db.insert(adminUsers).values(user);
+
+  // Sem papéis informados, quem cria a primeira conta assume a redação
+  // inteira: é o dono do veículo no primeiro acesso.
+  await setUserRoles(db, user.id, input.roles?.length ? input.roles : ["EDITOR_CHEFE", "ADMINISTRADOR"]);
   return user;
 }
 

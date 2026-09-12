@@ -12,7 +12,7 @@
     "build": "vinext build",
     "start": "vinext start",
     "lint": "eslint .",
-    "test": "npm run build && node --test \"tests/*.test.mjs\"",
+    "test": "npm run build && node --test \"tests/*.test.mjs\" \"tests/*.test.ts\"",
     "db:generate": "drizzle-kit generate",
     "deploy": "bash scripts/publish-portal.sh"
   },

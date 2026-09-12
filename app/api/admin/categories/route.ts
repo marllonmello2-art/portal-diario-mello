@@ -1,23 +1,22 @@
 import { categories } from "../../../../db/schema";
-import { sessionFromRequest, unauthorized } from "../../../../lib/portal/auth";
-import { getPortalDb } from "../../../../lib/portal/db";
+import { guardAdmin, isResponse } from "../../../../lib/portal/api-guard";
+import { recordAudit } from "../../../../lib/portal/audit";
 import { listCategories } from "../../../../lib/portal/queries";
 import { slugify } from "../../../../lib/portal/slug";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  if (!(await sessionFromRequest(request))) return unauthorized();
-  const db = await getPortalDb();
-  if (!db) return Response.json({ error: "Banco não conectado." }, { status: 503 });
-  return Response.json({ categories: await listCategories(db) });
+  const guard = await guardAdmin(request);
+  if (isResponse(guard)) return guard;
+  return Response.json({ categories: await listCategories(guard.db) });
 }
 
 /** Cria uma editoria (nome, slug e cor da tag). */
 export async function POST(request: Request) {
-  if (!(await sessionFromRequest(request))) return unauthorized();
-  const db = await getPortalDb();
-  if (!db) return Response.json({ error: "Banco não conectado." }, { status: 503 });
+  const guard = await guardAdmin(request, "EDITOR_CHEFE", "ADMINISTRADOR");
+  if (isResponse(guard)) return guard;
+  const db = guard.db;
 
   const body = (await request.json()) as { name?: string; slug?: string; color?: string; position?: number };
   const name = (body.name ?? "").trim();
@@ -37,5 +36,13 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "Já existe uma editoria com esse endereço (slug)." }, { status: 409 });
   }
+  await recordAudit(db, guard.actor.auditActor, {
+    action: "category.create",
+    entity: "category",
+    entityId: category.id,
+    metadata: { nome: category.name },
+    ip: guard.ip,
+  });
+
   return Response.json({ ok: true, category }, { status: 201 });
 }

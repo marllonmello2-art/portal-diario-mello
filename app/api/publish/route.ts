@@ -1,7 +1,9 @@
-import { createArticle, normalizeStatus } from "../../../lib/portal/articles";
+import { createArticle } from "../../../lib/portal/articles";
+import { recordAudit, requestIp } from "../../../lib/portal/audit";
 import { getEnvSecret } from "../../../lib/portal/auth";
 import { getPortalDb } from "../../../lib/portal/db";
 import { excerpt } from "../../../lib/portal/markdown";
+import { INTEGRATION_ENTRY_STATUS, STATUS_LABEL } from "../../../lib/portal/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +27,7 @@ type PublishBody = {
   tags?: string[];
   cover_image_url?: string;
   cover_credit?: string;
-  status?: string;
   access_level?: string;
-  published_at?: string;
   featured?: boolean;
 };
 
@@ -85,7 +85,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const status = normalizeStatus(body.status);
   const db = await getPortalDb();
   if (!db) {
     return Response.json(
@@ -94,6 +93,8 @@ export async function POST(request: Request) {
     );
   }
 
+  // Decisão editorial, não detalhe técnico: texto vindo de integração entra
+  // na fila de revisão humana. Não existe caminho daqui até PUBLICADA.
   const article = await createArticle(db, {
     title,
     subtitle: body.subtitle ?? null,
@@ -105,10 +106,11 @@ export async function POST(request: Request) {
     coverImageUrl: body.cover_image_url ?? null,
     coverCredit: body.cover_credit ?? null,
     tags: Array.isArray(body.tags) ? body.tags.filter((tag) => typeof tag === "string") : [],
-    status,
+    status: INTEGRATION_ENTRY_STATUS,
     accessLevel: body.access_level ?? null,
-    publishedAt: body.published_at ?? null,
-    featured: Boolean(body.featured),
+    featured: false,
+    origin: "integracao",
+    aiAssisted: true,
   });
 
   if (!article) {
@@ -118,24 +120,37 @@ export async function POST(request: Request) {
     );
   }
 
+  await recordAudit(db, { kind: "integracao", label: "agente via x-agent-api-key" }, {
+    action: "article.create",
+    entity: "article",
+    entityId: article.id,
+    toStatus: article.status,
+    note: "matéria recebida de integração, em fila de revisão",
+    metadata: { titulo: article.title },
+    ip: requestIp(request),
+  });
+
   const origin = new URL(request.url).origin;
   return Response.json(
     {
       ok: true,
+      aviso:
+        "Matéria criada em revisão editorial. Publicação exige aprovação de um editor-chefe humano.",
       article: {
         id: article.id,
         title: article.title,
         slug: article.slug,
         subtitle: article.subtitle,
         status: article.status,
+        status_descricao: STATUS_LABEL[article.status as keyof typeof STATUS_LABEL] ?? article.status,
         access_level: article.accessLevel,
         category: article.categoryName,
         category_slug: article.categorySlug,
         author: article.authorName,
         cover_image_url: article.coverImageUrl,
-        published_at: article.publishedAt,
         excerpt: excerpt(article.content, 200),
-        url: `${origin}/noticia/${article.slug}`,
+        url_apos_publicacao: `${origin}/noticia/${article.slug}`,
+        painel: `${origin}/admin/materias/${article.id}`,
       },
     },
     { status: 201 },

@@ -1,22 +1,21 @@
 import { authors } from "../../../../db/schema";
-import { sessionFromRequest, unauthorized } from "../../../../lib/portal/auth";
-import { getPortalDb } from "../../../../lib/portal/db";
+import { guardAdmin, isResponse } from "../../../../lib/portal/api-guard";
+import { recordAudit } from "../../../../lib/portal/audit";
 import { listAuthors } from "../../../../lib/portal/queries";
 import { slugify } from "../../../../lib/portal/slug";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  if (!(await sessionFromRequest(request))) return unauthorized();
-  const db = await getPortalDb();
-  if (!db) return Response.json({ error: "Banco não conectado." }, { status: 503 });
-  return Response.json({ authors: await listAuthors(db) });
+  const guard = await guardAdmin(request);
+  if (isResponse(guard)) return guard;
+  return Response.json({ authors: await listAuthors(guard.db) });
 }
 
 export async function POST(request: Request) {
-  if (!(await sessionFromRequest(request))) return unauthorized();
-  const db = await getPortalDb();
-  if (!db) return Response.json({ error: "Banco não conectado." }, { status: 503 });
+  const guard = await guardAdmin(request, "EDITOR_CHEFE", "ADMINISTRADOR");
+  if (isResponse(guard)) return guard;
+  const db = guard.db;
 
   const body = (await request.json()) as {
     name?: string;
@@ -42,5 +41,13 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "Já existe um autor com esse nome." }, { status: 409 });
   }
+  await recordAudit(db, guard.actor.auditActor, {
+    action: "author.create",
+    entity: "author",
+    entityId: author.id,
+    metadata: { nome: author.name },
+    ip: guard.ip,
+  });
+
   return Response.json({ ok: true, author }, { status: 201 });
 }

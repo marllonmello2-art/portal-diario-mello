@@ -67,6 +67,32 @@ A sessão do leitor usa um cookie próprio (`dm_leitor`, 30 dias) e um público
 diferente no token: uma sessão de leitor nunca abre o painel, e a do painel não
 vale como leitor.
 
+## Governança editorial
+
+O painel é uma redação com fluxo, papéis e trilha de auditoria.
+
+**Estados da matéria:** RASCUNHO → EM_APURACAO → EM_REDACAO → EM_REVISAO →
+(EM_REVISAO_JURIDICA) → APROVADA → PUBLICADA, mais AGENDADA, CORRIGIDA e
+ARQUIVADA. A máquina de estados vive em `lib/portal/permissions.ts` e é
+validada no servidor: transição fora da tabela é recusada, venha de onde vier.
+
+**Papéis** (acumuláveis por pessoa, em `admin_user_roles`):
+
+| Perfil | Pode |
+| --- | --- |
+| AUTOR | Criar e editar as próprias matérias até entregar para revisão |
+| EDITOR | Revisar, mandar para revisão jurídica e aprovar |
+| EDITOR_CHEFE | Único que publica, agenda, despublica e arquiva |
+| ADMINISTRADOR | Pessoas, editorias, autores e exclusão definitiva |
+
+**Regra inegociável:** matéria vinda de integração (`POST /api/publish`) entra
+sempre em EM_REVISAO, marcada como origem `integracao`. Não existe caminho de
+código de uma integração até PUBLICADA — publicar é ato de um EDITOR_CHEFE
+humano, registrado com nome e horário.
+
+**Auditoria:** `/admin/auditoria` guarda login, criação, edição, mudança de
+estado, aprovação, publicação e exclusão. Linhas nunca são alteradas.
+
 ## Painel do editor (`/admin`)
 
 Lista com filtros e contadores, editor em Markdown com pré-visualização, upload

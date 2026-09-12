@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { articles, authors } from "../../../../../db/schema";
-import { sessionFromRequest, unauthorized } from "../../../../../lib/portal/auth";
-import { getPortalDb } from "../../../../../lib/portal/db";
+import { guardAdmin, isResponse } from "../../../../../lib/portal/api-guard";
+import { recordAudit } from "../../../../../lib/portal/audit";
 import { slugify } from "../../../../../lib/portal/slug";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +9,9 @@ export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Context) {
-  if (!(await sessionFromRequest(request))) return unauthorized();
-  const db = await getPortalDb();
-  if (!db) return Response.json({ error: "Banco não conectado." }, { status: 503 });
+  const guard = await guardAdmin(request, "EDITOR_CHEFE", "ADMINISTRADOR");
+  if (isResponse(guard)) return guard;
+  const db = guard.db;
 
   const { id } = await params;
   const body = (await request.json()) as {
@@ -39,12 +39,20 @@ export async function PATCH(request: Request, { params }: Context) {
 
 /** Remove o autor; as matérias dele ficam sem assinatura. */
 export async function DELETE(request: Request, { params }: Context) {
-  if (!(await sessionFromRequest(request))) return unauthorized();
-  const db = await getPortalDb();
-  if (!db) return Response.json({ error: "Banco não conectado." }, { status: 503 });
+  const guard = await guardAdmin(request, "EDITOR_CHEFE", "ADMINISTRADOR");
+  if (isResponse(guard)) return guard;
+  const db = guard.db;
 
   const { id } = await params;
   await db.update(articles).set({ authorId: null }).where(eq(articles.authorId, id));
   await db.delete(authors).where(eq(authors.id, id));
+
+  await recordAudit(db, guard.actor.auditActor, {
+    action: "author.delete",
+    entity: "author",
+    entityId: id,
+    ip: guard.ip,
+  });
+
   return Response.json({ ok: true });
 }

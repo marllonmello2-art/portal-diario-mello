@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { renderMarkdown } from "../../lib/portal/markdown";
 import { requestJson } from "../../lib/portal/http";
-import { toLocalInput } from "../../lib/portal/format";
 import { Img } from "../portal/Img";
 
 type Option = { id: string; name: string };
@@ -24,6 +23,8 @@ export type EditorArticle = {
   accessLevel: string;
   featured: number;
   publishedAt: string | null;
+  origin: string;
+  aiAssisted: number;
 };
 
 /**
@@ -37,11 +38,16 @@ export function ArticleEditor({
   authors,
   article,
   initialTags,
+  readOnly = false,
+  readOnlyReason,
 }: {
   categories: Option[];
   authors: Option[];
   article?: EditorArticle;
   initialTags?: string[];
+  /** O servidor já decidiu que esta pessoa não pode editar neste estado. */
+  readOnly?: boolean;
+  readOnlyReason?: string;
 }) {
   const router = useRouter();
   const [title, setTitle] = useState(article?.title ?? "");
@@ -54,9 +60,6 @@ export function ArticleEditor({
   const [tags, setTags] = useState((initialTags ?? []).join(", "));
   const [featured, setFeatured] = useState(Boolean(article?.featured));
   const [accessLevel, setAccessLevel] = useState(article?.accessLevel ?? "public");
-  const [scheduleAt, setScheduleAt] = useState(
-    article?.status === "scheduled" ? toLocalInput(article.publishedAt) : "",
-  );
   const [tab, setTab] = useState<"editor" | "preview">("editor");
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
@@ -84,17 +87,13 @@ export function ArticleEditor({
     }
   }
 
-  async function save(status: "draft" | "published" | "scheduled") {
+  async function save() {
     if (!title.trim() || !content.trim()) {
       setMessage({ type: "error", text: "Título e texto são obrigatórios." });
       return;
     }
-    if (status === "scheduled" && !scheduleAt) {
-      setMessage({ type: "error", text: "Escolha a data e a hora do agendamento." });
-      return;
-    }
 
-    setBusy(status);
+    setBusy("salvar");
     setMessage(null);
     const payload = {
       title,
@@ -105,9 +104,7 @@ export function ArticleEditor({
       coverImageUrl: coverImageUrl || null,
       coverCredit: coverCredit || null,
       tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
-      status,
       accessLevel,
-      publishedAt: status === "scheduled" ? new Date(scheduleAt).toISOString() : undefined,
       featured,
     };
 
@@ -126,15 +123,7 @@ export function ArticleEditor({
         router.refresh();
         return;
       }
-      setMessage({
-        type: "ok",
-        text:
-          status === "published"
-            ? "Matéria publicada."
-            : status === "scheduled"
-              ? "Agendamento salvo."
-              : "Rascunho salvo.",
-      });
+      setMessage({ type: "ok", text: "Alterações salvas." });
       router.refresh();
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Erro ao salvar." });
@@ -148,19 +137,34 @@ export function ArticleEditor({
       <div className="dm-admin-head">
         <h1>{article ? "Editar matéria" : "Nova matéria"}</h1>
         <div className="dm-actions">
-          {article && article.status === "published" ? (
+          {article && (article.status === "PUBLICADA" || article.status === "CORRIGIDA") ? (
             <Link href={`/noticia/${article.slug}`} target="_blank" className="dm-btn dm-btn-ghost">
               Ver no site ↗
             </Link>
           ) : null}
-          <button type="button" className="dm-btn dm-btn-ghost" disabled={Boolean(busy)} onClick={() => save("draft")}>
-            {busy === "draft" ? "Salvando…" : "Salvar rascunho"}
-          </button>
-          <button type="button" className="dm-btn" disabled={Boolean(busy)} onClick={() => save("published")}>
-            {busy === "published" ? "Publicando…" : "Publicar"}
+          <button
+            type="button"
+            className="dm-btn"
+            disabled={Boolean(busy) || readOnly}
+            onClick={() => void save()}
+          >
+            {busy === "salvar" ? "Salvando…" : "Salvar"}
           </button>
         </div>
       </div>
+
+      {readOnly ? (
+        <p className="dm-aviso">
+          {readOnlyReason ?? "Você não pode editar esta matéria neste estado."}
+        </p>
+      ) : null}
+
+      {article?.origin === "integracao" || article?.aiAssisted ? (
+        <p className="dm-aviso dm-aviso-ia">
+          Texto com assistência de IA. Confira fontes, números, nomes e citações antes de aprovar —
+          o registro deste uso fica na auditoria.
+        </p>
+      ) : null}
 
       {message ? (
         <p className={`dm-note ${message.type === "error" ? "dm-note-error" : "dm-note-ok"}`}>
@@ -172,7 +176,7 @@ export function ArticleEditor({
         <div className="dm-panel">
           <div className="dm-field">
             <label htmlFor="dm-title">Título</label>
-            <input id="dm-title" value={title} onChange={(event) => setTitle(event.target.value)} />
+            <input id="dm-title" value={title} disabled={readOnly} onChange={(event) => setTitle(event.target.value)} />
           </div>
 
           <div className="dm-field">
@@ -207,6 +211,7 @@ export function ArticleEditor({
               <label htmlFor="dm-content">Corpo da matéria</label>
               <textarea
                 id="dm-content"
+                disabled={readOnly}
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
                 placeholder={"## Subtítulo\n\nEscreva aqui. **Negrito**, *itálico*, [links](https://exemplo.com), listas e citações com >."}
@@ -220,7 +225,7 @@ export function ArticleEditor({
 
         <aside>
           <div className="dm-panel">
-            <h2>Publicação</h2>
+            <h2>Ficha da matéria</h2>
             <div className="dm-field">
               <label htmlFor="dm-category">Editoria</label>
               <select id="dm-category" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
@@ -277,24 +282,6 @@ export function ArticleEditor({
               Destaque principal da capa
             </label>
 
-            <div className="dm-field">
-              <label htmlFor="dm-schedule">Agendar para</label>
-              <input
-                id="dm-schedule"
-                type="datetime-local"
-                value={scheduleAt}
-                onChange={(event) => setScheduleAt(event.target.value)}
-              />
-              <button
-                type="button"
-                className="dm-btn dm-btn-ghost"
-                style={{ marginTop: 8 }}
-                disabled={Boolean(busy)}
-                onClick={() => save("scheduled")}
-              >
-                {busy === "scheduled" ? "Agendando…" : "Agendar publicação"}
-              </button>
-            </div>
           </div>
 
           <div className="dm-panel">

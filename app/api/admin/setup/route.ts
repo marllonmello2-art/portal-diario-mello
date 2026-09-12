@@ -1,4 +1,5 @@
 import { countAdmins, createAdmin, createSessionToken, sessionCookie } from "../../../../lib/portal/auth";
+import { recordAudit, requestIp } from "../../../../lib/portal/audit";
 import { getPortalDb } from "../../../../lib/portal/db";
 
 export const dynamic = "force-dynamic";
@@ -42,11 +43,27 @@ export async function POST(request: Request) {
     return Response.json({ error: "A senha precisa ter pelo menos 10 caracteres." }, { status: 400 });
   }
 
-  const user = await createAdmin(db, { email, password, name: body.name ?? null, role: "admin" });
-  const token = await createSessionToken({ ...user, name: user.name });
+  // O primeiro acesso é do dono do veículo: editor-chefe e administrador.
+  const roles = ["EDITOR_CHEFE", "ADMINISTRADOR"] as const;
+  const user = await createAdmin(db, {
+    email,
+    password,
+    name: body.name ?? null,
+    role: "admin",
+    roles: [...roles],
+  });
+  const token = await createSessionToken({ ...user, name: user.name, roles: [...roles] });
+
+  await recordAudit(db, { kind: "sistema" }, {
+    action: "admin.primeiro_acesso",
+    entity: "admin_user",
+    entityId: user.id,
+    metadata: { email: user.email, papeis: roles },
+    ip: requestIp(request),
+  });
 
   return Response.json(
-    { ok: true, user: { email: user.email, name: user.name, role: user.role } },
+    { ok: true, user: { email: user.email, name: user.name, roles } },
     { status: 201, headers: { "set-cookie": sessionCookie(token) } },
   );
 }

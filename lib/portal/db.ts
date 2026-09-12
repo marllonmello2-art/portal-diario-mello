@@ -111,6 +111,29 @@ const DDL = [
     source TEXT NOT NULL DEFAULT 'site',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS admin_user_roles (
+    user_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    granted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, role)
+  )`,
+  `CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY NOT NULL,
+    at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actor_kind TEXT NOT NULL DEFAULT 'usuario',
+    actor_id TEXT,
+    actor_label TEXT,
+    action TEXT NOT NULL,
+    entity TEXT,
+    entity_id TEXT,
+    from_status TEXT,
+    to_status TEXT,
+    note TEXT,
+    metadata TEXT,
+    ip TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS audit_log_at_idx ON audit_log(at)`,
+  `CREATE INDEX IF NOT EXISTS audit_log_entity_idx ON audit_log(entity, entity_id)`,
   `CREATE TABLE IF NOT EXISTS readers (
     id TEXT PRIMARY KEY NOT NULL,
     email TEXT NOT NULL UNIQUE,
@@ -178,6 +201,70 @@ async function addMissingColumns(d1: D1Database) {
       .prepare("ALTER TABLE articles ADD COLUMN access_level TEXT NOT NULL DEFAULT 'public'")
       .run();
   }
+
+  // Governança editorial (fase 1).
+  const novas: [string, string][] = [
+    ["created_by_user_id", "ALTER TABLE articles ADD COLUMN created_by_user_id TEXT"],
+    ["origin", "ALTER TABLE articles ADD COLUMN origin TEXT NOT NULL DEFAULT 'painel'"],
+    ["ai_assisted", "ALTER TABLE articles ADD COLUMN ai_assisted INTEGER NOT NULL DEFAULT 0"],
+    ["approved_by_user_id", "ALTER TABLE articles ADD COLUMN approved_by_user_id TEXT"],
+    ["approved_at", "ALTER TABLE articles ADD COLUMN approved_at TEXT"],
+    ["published_by_user_id", "ALTER TABLE articles ADD COLUMN published_by_user_id TEXT"],
+  ];
+  for (const [coluna, comando] of novas) {
+    if (!columns.has(coluna)) await d1.prepare(comando).run();
+  }
+
+  await migrateEditorialStatuses(d1);
+  await migrateRoles(d1);
+}
+
+/**
+ * Traduz os três status antigos para o vocabulário editorial.
+ *
+ * Nenhuma matéria é criada, apagada ou reescrita: só o rótulo do estado muda.
+ * A consulta é idempotente — depois da primeira passada nada mais casa.
+ */
+async function migrateEditorialStatuses(d1: D1Database) {
+  const antigos: [string, string][] = [
+    ["draft", "RASCUNHO"],
+    ["published", "PUBLICADA"],
+    ["scheduled", "AGENDADA"],
+  ];
+  for (const [de, para] of antigos) {
+    await d1.prepare("UPDATE articles SET status = ? WHERE status = ?").bind(para, de).run();
+  }
+}
+
+/**
+ * Converte o antigo campo `role` em papéis da nova governança.
+ *
+ * O dono do portal (que era `admin`) vira editor-chefe E administrador, para
+ * não ficar sem poder publicar no meio da migração.
+ */
+async function migrateRoles(d1: D1Database) {
+  const usuarios = await d1
+    .prepare(
+      `SELECT u.id, u.role FROM admin_users u
+       WHERE NOT EXISTS (SELECT 1 FROM admin_user_roles r WHERE r.user_id = u.id)`,
+    )
+    .all<{ id: string; role: string }>();
+
+  const linhas = usuarios.results ?? [];
+  if (!linhas.length) return;
+
+  const inserts = [];
+  for (const usuario of linhas as { id: string; role: string }[]) {
+    const papeis = usuario.role === "editor" ? ["EDITOR"] : ["EDITOR_CHEFE", "ADMINISTRADOR"];
+    for (const papel of papeis) {
+      inserts.push(
+        d1
+          .prepare("INSERT OR IGNORE INTO admin_user_roles (user_id, role) VALUES (?, ?)")
+          .bind(usuario.id, papel),
+      );
+    }
+  }
+  if (inserts.length) await d1.batch(inserts);
 }
 
 /** Seed idempotente: editorias, redação padrão e matérias de demonstração. */
@@ -272,7 +359,7 @@ async function seedDemoArticles(d1: D1Database) {
         .prepare(
           `INSERT OR IGNORE INTO articles
             (id, title, slug, subtitle, content, category_id, author_id, status, featured, published_at, created_at, updated_at, views_count)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'published', ?, ?, ?, ?, 0)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'PUBLICADA', ?, ?, ?, ?, 0)`,
         )
         .bind(
           crypto.randomUUID(),

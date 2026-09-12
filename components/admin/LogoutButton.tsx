@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 /** Encerra a sessão apagando o cookie assinado no servidor. */
-export function LogoutButton({ label }: { label: string }) {
+export function LogoutButton({ label, papeis }: { label: string; papeis?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -23,7 +23,10 @@ export function LogoutButton({ label }: { label: string }) {
       }}
       style={{ display: "flex", alignItems: "center", gap: 12 }}
     >
-      <span style={{ fontSize: 13, color: "#c9ced7" }}>{label}</span>
+      <span className="dm-admin-quem">
+        <b>{label}</b>
+        {papeis ? <small>{papeis}</small> : null}
+      </span>
       <button type="submit" className="dm-btn dm-btn-ghost" disabled={busy}>
         {busy ? "Saindo…" : "Sair"}
       </button>

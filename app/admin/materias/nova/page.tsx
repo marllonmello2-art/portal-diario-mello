@@ -4,6 +4,8 @@ import { ArticleEditor } from "../../../../components/admin/ArticleEditor";
 import { getPortalDb } from "../../../../lib/portal/db";
 import { listAuthors, listCategories } from "../../../../lib/portal/queries";
 import { requireAdmin } from "../../../../lib/portal/session-server";
+import { canCreateArticle } from "../../../../lib/portal/permissions";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +13,7 @@ export const metadata: Metadata = { title: "Nova matéria", robots: { index: fal
 
 export default async function NewArticlePage() {
   const session = await requireAdmin("/admin/materias/nova");
+  if (!canCreateArticle(session)) redirect("/admin?sem_permissao=1");
   const db = await getPortalDb();
 
   if (!db) {

@@ -6,6 +6,7 @@
  * agendamento funcionar sem precisar de cron.
  */
 import { and, desc, eq, inArray, like, lte, ne, or, sql } from "drizzle-orm";
+import { PUBLIC_STATUSES } from "./permissions";
 import { articleTags, articles, authors, categories, readerSavedArticles, tags } from "../../db/schema";
 import type { PortalDb } from "./db";
 
@@ -21,6 +22,9 @@ export type ArticleCard = {
   coverCredit: string | null;
   status: string;
   accessLevel: string;
+  origin: string;
+  aiAssisted: number;
+  createdByUserId: string | null;
   featured: number;
   publishedAt: string | null;
   updatedAt: string;
@@ -49,6 +53,9 @@ const cardColumns = {
   coverCredit: articles.coverCredit,
   status: articles.status,
   accessLevel: articles.accessLevel,
+  origin: articles.origin,
+  aiAssisted: articles.aiAssisted,
+  createdByUserId: articles.createdByUserId,
   featured: articles.featured,
   publishedAt: articles.publishedAt,
   updatedAt: articles.updatedAt,
@@ -61,12 +68,18 @@ const cardColumns = {
   authorAvatar: authors.avatarUrl,
 };
 
-/** Condição SQL de "matéria visível ao público". */
+/**
+ * Condição SQL de "matéria visível ao público".
+ *
+ * Publicada ou corrigida aparece; agendada aparece quando a hora chega. Todo
+ * o resto (rascunho, apuração, revisão, aprovada, arquivada) é invisível fora
+ * do painel — inclusive para buscadores.
+ */
 function visible() {
   const now = new Date().toISOString();
   return or(
-    eq(articles.status, "published"),
-    and(eq(articles.status, "scheduled"), lte(articles.publishedAt, now)),
+    inArray(articles.status, PUBLIC_STATUSES),
+    and(eq(articles.status, "AGENDADA"), lte(articles.publishedAt, now)),
   );
 }
 
@@ -169,8 +182,8 @@ export async function getArticleById(db: PortalDb, id: string): Promise<ArticleF
 }
 
 export function isVisible(article: { status: string; publishedAt: string | null }): boolean {
-  if (article.status === "published") return true;
-  if (article.status === "scheduled" && article.publishedAt) {
+  if ((PUBLIC_STATUSES as string[]).includes(article.status)) return true;
+  if (article.status === "AGENDADA" && article.publishedAt) {
     return new Date(article.publishedAt).getTime() <= Date.now();
   }
   return false;
@@ -274,12 +287,21 @@ export async function isArticleSaved(
 /** Lista do painel: todos os status, com filtros opcionais. */
 export async function adminListArticles(
   db: PortalDb,
-  filters: { status?: string; categoryId?: string; search?: string } = {},
+  filters: {
+    status?: string;
+    categoryId?: string;
+    search?: string;
+    /** Preenchido para o perfil AUTOR: ele só enxerga o que é dele. */
+    onlyAuthorUserId?: string;
+  } = {},
 ): Promise<ArticleCard[]> {
   const conditions = [];
   if (filters.status) conditions.push(eq(articles.status, filters.status));
   if (filters.categoryId) conditions.push(eq(articles.categoryId, filters.categoryId));
   if (filters.search) conditions.push(searchCondition(filters.search));
+  if (filters.onlyAuthorUserId) {
+    conditions.push(eq(articles.createdByUserId, filters.onlyAuthorUserId));
+  }
 
   const query = baseSelect(db).orderBy(desc(articles.updatedAt)).limit(200);
   return conditions.length ? query.where(and(...conditions)) : query;

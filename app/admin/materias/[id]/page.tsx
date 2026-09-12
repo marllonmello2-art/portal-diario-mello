@@ -2,7 +2,13 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminShell } from "../../../../components/admin/AdminShell";
 import { ArticleEditor } from "../../../../components/admin/ArticleEditor";
+import { WorkflowPanel } from "../../../../components/admin/WorkflowPanel";
+import { AuditTrail } from "../../../../components/admin/AuditTrail";
+import { listAudit } from "../../../../lib/portal/audit";
 import { getPortalDb } from "../../../../lib/portal/db";
+import { toLocalInput } from "../../../../lib/portal/format";
+import { normalizeStatus } from "../../../../lib/portal/articles";
+import { allowedTransitions, canEditArticle } from "../../../../lib/portal/permissions";
 import { getArticleById, listAuthors, listCategories, tagsOfArticle } from "../../../../lib/portal/queries";
 import { requireAdmin } from "../../../../lib/portal/session-server";
 
@@ -26,17 +32,28 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
   const article = await getArticleById(db, id);
   if (!article) notFound();
 
-  const [categories, authors, tags] = await Promise.all([
+  const status = normalizeStatus(article.status);
+  const [categories, authors, tags, historico] = await Promise.all([
     listCategories(db),
     listAuthors(db),
     tagsOfArticle(db, id),
+    listAudit(db, { entity: "article", entityId: id, limit: 30 }),
   ]);
+
+  // Quem decide se esta pessoa edita é o mesmo módulo que a API consulta.
+  const podeEditar = canEditArticle(session, {
+    status,
+    authorUserId: article.createdByUserId,
+  });
+  const transicoes = allowedTransitions(session, status);
 
   return (
     <AdminShell user={session}>
       <ArticleEditor
         categories={categories.map((category) => ({ id: category.id, name: category.name }))}
         authors={authors.map((author) => ({ id: author.id, name: author.name }))}
+        readOnly={!podeEditar.ok}
+        readOnlyReason={podeEditar.ok ? undefined : podeEditar.reason}
         article={{
           id: article.id,
           title: article.title,
@@ -51,9 +68,21 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
           accessLevel: article.accessLevel,
           featured: article.featured,
           publishedAt: article.publishedAt,
+          origin: article.origin,
+          aiAssisted: article.aiAssisted,
         }}
         initialTags={tags.map((tag) => tag.name)}
       />
+
+      <div className="dm-editor-layout" style={{ marginTop: 18 }}>
+        <AuditTrail eventos={historico} />
+        <WorkflowPanel
+          articleId={article.id}
+          status={status}
+          transitions={transicoes}
+          scheduledFor={toLocalInput(article.publishedAt) || toLocalInput(new Date().toISOString())}
+        />
+      </div>
     </AdminShell>
   );
 }

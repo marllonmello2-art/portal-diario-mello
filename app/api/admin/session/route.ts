@@ -5,10 +5,12 @@ import {
   createSessionToken,
   findAdminByEmail,
   hashPassword,
+  rolesOfUser,
   sessionCookie,
   sessionFromRequest,
   verifyPassword,
 } from "../../../../lib/portal/auth";
+import { recordAudit, requestIp } from "../../../../lib/portal/audit";
 import { getPortalDb } from "../../../../lib/portal/db";
 
 export const dynamic = "force-dynamic";
@@ -59,9 +61,19 @@ export async function POST(request: Request) {
     .set({ lastLoginAt: new Date().toISOString() })
     .where(eq(adminUsers.id, user.id));
 
-  const token = await createSessionToken(user);
+  const roles = await rolesOfUser(db, user.id);
+  const token = await createSessionToken({ ...user, roles });
+
+  await recordAudit(db, { kind: "usuario", id: user.id, label: user.name || user.email }, {
+    action: "login.sucesso",
+    entity: "admin_user",
+    entityId: user.id,
+    metadata: { papeis: roles },
+    ip: requestIp(request),
+  });
+
   return Response.json(
-    { ok: true, user: { email: user.email, name: user.name, role: user.role } },
+    { ok: true, user: { email: user.email, name: user.name, roles } },
     { headers: { "set-cookie": sessionCookie(token) } },
   );
 }

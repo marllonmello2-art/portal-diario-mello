@@ -5,6 +5,9 @@ import { ArticleEditor } from "../../../../components/admin/ArticleEditor";
 import { WorkflowPanel } from "../../../../components/admin/WorkflowPanel";
 import { AuditTrail } from "../../../../components/admin/AuditTrail";
 import { SourcesPanel } from "../../../../components/admin/SourcesPanel";
+import { CorrectionPanel } from "../../../../components/admin/CorrectionPanel";
+import { listCorrections } from "../../../../lib/portal/corrections";
+import { hasRole } from "../../../../lib/portal/permissions";
 import { listSources } from "../../../../lib/portal/sources";
 import { requiresConfirmedSource } from "../../../../lib/portal/classification";
 import { listAudit } from "../../../../lib/portal/audit";
@@ -36,12 +39,13 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
   if (!article) notFound();
 
   const status = normalizeStatus(article.status);
-  const [categories, authors, tags, historico, fontes] = await Promise.all([
+  const [categories, authors, tags, historico, fontes, correcoes] = await Promise.all([
     listCategories(db),
     listAuthors(db),
     tagsOfArticle(db, id),
     listAudit(db, { entity: "article", entityId: id, limit: 30 }),
     listSources(db, id),
+    listCorrections(db, id),
   ]);
 
   // Quem decide se esta pessoa edita é o mesmo módulo que a API consulta.
@@ -97,6 +101,12 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
             status={status}
             transitions={transicoes}
             scheduledFor={toLocalInput(article.publishedAt) || toLocalInput(new Date().toISOString())}
+          />
+          <CorrectionPanel
+            articleId={article.id}
+            correcoes={correcoes}
+            podeCorrigir={hasRole(session, "EDITOR_CHEFE")}
+            publicada={status === "PUBLICADA" || status === "CORRIGIDA"}
           />
           <AuditTrail eventos={historico} />
         </div>

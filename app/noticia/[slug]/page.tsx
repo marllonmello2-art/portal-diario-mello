@@ -23,6 +23,8 @@ import {
   ClassificationNotice,
   ClassificationTag,
 } from "../../../components/portal/ClassificationTag";
+import { listCorrections } from "../../../lib/portal/corrections";
+import { formatDateTime as formatCorrecao } from "../../../lib/portal/format";
 import { SaveArticleButton } from "../../../components/portal/SaveArticleButton";
 import { currentReader } from "../../../lib/portal/session-server";
 
@@ -74,10 +76,11 @@ export default async function ArticlePage({ params }: PageProps) {
   if (!article || !isVisible(article)) notFound();
 
   const reader = await currentReader();
-  const [tags, related, saved] = await Promise.all([
+  const [tags, related, saved, correcoes] = await Promise.all([
     tagsOfArticle(db, article.id),
     relatedArticles(db, article, 4),
     reader ? isArticleSaved(db, reader.sub, article.id) : Promise.resolve(false),
+    listCorrections(db, article.id),
   ]);
 
   // Matéria exclusiva + visitante sem conta: mostramos só a abertura do texto.
@@ -202,6 +205,19 @@ export default async function ArticlePage({ params }: PageProps) {
               }
             />
           )}
+
+          {correcoes.length ? (
+            <section className="dm-correcoes" aria-labelledby="dm-correcoes-titulo">
+              <h2 id="dm-correcoes-titulo">
+                {correcoes.length === 1 ? "Correção" : "Correções"}
+              </h2>
+              {correcoes.map((correcao) => (
+                <p key={correcao.id}>
+                  <strong>Correção: {formatCorrecao(correcao.createdAt)}</strong> — {correcao.description}
+                </p>
+              ))}
+            </section>
+          ) : null}
 
           {tags.length ? (
             <div className="dm-tags">

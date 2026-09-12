@@ -108,6 +108,20 @@ essa papelada. A exceção é a ilustração do próprio portal, creditada como
 **Auditoria:** `/admin/auditoria` guarda login, criação, edição, mudança de
 estado, aprovação, publicação e exclusão. Linhas nunca são alteradas.
 
+## Correções e direito de resposta
+
+Formulário público em `/direito-de-resposta` devolve um **protocolo**
+(`DM-2026-XXXXXX`) na hora e joga o pedido na fila de `/admin/pedidos`, com os
+status recebido → em análise → respondido / corrigido / recusado. Três pedidos
+aceitos por hora por endereço.
+
+Correção registrada por um editor-chefe aparece **no pé da matéria** ("Correção:
+data e hora — descrição") e move a matéria para CORRIGIDA. Alteração factual em
+texto publicado nunca é silenciosa.
+
+Páginas institucionais: `/politica-editorial`, `/politica-de-correcoes`,
+`/direito-de-resposta`, `/termos-de-uso`, `/politica-de-cookies` e `/uso-de-ia`.
+
 ## Painel do editor (`/admin`)
 
 Lista com filtros e contadores, editor em Markdown com pré-visualização, upload

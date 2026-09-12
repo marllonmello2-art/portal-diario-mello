@@ -1,5 +1,7 @@
 import { newsletterSubscribers } from "../../../db/schema";
+import { requestIp } from "../../../lib/portal/audit";
 import { getPortalDb } from "../../../lib/portal/db";
+import { checkRateLimit, tooManyRequests } from "../../../lib/portal/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,11 @@ export async function POST(request: Request) {
       { status: 503 },
     );
   }
+
+  // Cinco inscrições por hora do mesmo endereço.
+  const ip = requestIp(request) ?? "desconhecido";
+  const limite = await checkRateLimit(db, `newsletter:${ip}`, { limit: 5, windowSeconds: 3600 });
+  if (!limite.ok) return tooManyRequests(limite.retryAfter);
 
   // `onConflictDoNothing` deixa o cadastro repetido silencioso — para o leitor
   // o resultado é o mesmo e não vazamos quem já é assinante.

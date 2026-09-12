@@ -33,18 +33,21 @@ export function SiteFooter({ categories }: { categories: NavItem[] }) {
             <h4>Institucional</h4>
             <ul>
               <li><Link href="/sobre">Quem somos</Link></li>
-              <li><Link href="/contato">Fale com a redação</Link></li>
-              <li><Link href="/privacidade">Privacidade</Link></li>
               <li><Link href="/expediente">Expediente</Link></li>
+              <li><Link href="/politica-editorial">Política editorial</Link></li>
+              <li><Link href="/uso-de-ia">Uso de IA</Link></li>
+              <li><Link href="/contato">Fale com a redação</Link></li>
             </ul>
           </div>
 
           <div>
-            <h4>Serviços</h4>
+            <h4>Transparência</h4>
             <ul>
-              <li><Link href="/busca">Busca</Link></li>
-              <li><Link href="/sitemap.xml">Mapa do site</Link></li>
-              <li><Link href="/admin">Painel do editor</Link></li>
+              <li><Link href="/politica-de-correcoes">Correções</Link></li>
+              <li><Link href="/direito-de-resposta">Direito de resposta</Link></li>
+              <li><Link href="/privacidade">Privacidade</Link></li>
+              <li><Link href="/politica-de-cookies">Cookies</Link></li>
+              <li><Link href="/termos-de-uso">Termos de uso</Link></li>
             </ul>
           </div>
         </div>
@@ -53,7 +56,10 @@ export function SiteFooter({ categories }: { categories: NavItem[] }) {
           <span>
             © {new Date().getFullYear()} {BRAND.name}. Todos os direitos reservados.
           </span>
-          <span>{BRAND.email}</span>
+          <span>
+            <Link href="/busca">Busca</Link> · <Link href="/sitemap.xml">Mapa do site</Link> ·{" "}
+            <Link href="/admin">Painel</Link> · {BRAND.email}
+          </span>
         </div>
       </div>
     </footer>

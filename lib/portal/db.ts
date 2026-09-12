@@ -111,6 +111,40 @@ const DDL = [
     source TEXT NOT NULL DEFAULT 'site',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS correction_requests (
+    id TEXT PRIMARY KEY NOT NULL,
+    protocol TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL DEFAULT 'correcao',
+    article_id TEXT,
+    article_url TEXT,
+    requester_name TEXT NOT NULL,
+    requester_email TEXT NOT NULL,
+    requester_role TEXT,
+    claim TEXT NOT NULL,
+    evidence TEXT,
+    status TEXT NOT NULL DEFAULT 'recebido',
+    internal_note TEXT,
+    response TEXT,
+    handled_by_user_id TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ip TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS correction_requests_status_idx ON correction_requests(status, created_at)`,
+  `CREATE TABLE IF NOT EXISTS article_corrections (
+    id TEXT PRIMARY KEY NOT NULL,
+    article_id TEXT NOT NULL,
+    description TEXT NOT NULL,
+    corrected_by_user_id TEXT,
+    request_id TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS article_corrections_article_idx ON article_corrections(article_id, created_at)`,
+  `CREATE TABLE IF NOT EXISTS rate_limits (
+    key TEXT PRIMARY KEY NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    window_start TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS article_sources (
     id TEXT PRIMARY KEY NOT NULL,
     article_id TEXT NOT NULL,

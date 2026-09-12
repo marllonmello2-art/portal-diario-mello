@@ -157,6 +157,65 @@ export const mediaAssets = sqliteTable("media_assets", {
 });
 
 /**
+ * Pedidos de correção e de direito de resposta.
+ *
+ * Entram pelo formulário público com um protocolo, e a redação responde no
+ * painel. Guardar o pedido é o que permite provar, depois, que houve resposta
+ * — e em quanto tempo.
+ */
+export const correctionRequests = sqliteTable("correction_requests", {
+  id: text("id").primaryKey(),
+  /** Código que o solicitante usa para acompanhar: DM-2026-XXXXXX. */
+  protocol: text("protocol").notNull().unique(),
+  /** correcao | direito_resposta */
+  kind: text("kind").notNull().default("correcao"),
+  articleId: text("article_id"),
+  /** Endereço informado pelo solicitante, quando ele não veio de uma matéria. */
+  articleUrl: text("article_url"),
+  requesterName: text("requester_name").notNull(),
+  requesterEmail: text("requester_email").notNull(),
+  requesterRole: text("requester_role"),
+  /** O que o solicitante afirma estar errado. */
+  claim: text("claim").notNull(),
+  /** Documento, link ou referência que sustenta o pedido. */
+  evidence: text("evidence"),
+  /** recebido | em_analise | respondido | corrigido | recusado */
+  status: text("status").notNull().default("recebido"),
+  internalNote: text("internal_note"),
+  /** Resposta enviada ao solicitante. */
+  response: text("response"),
+  handledByUserId: text("handled_by_user_id"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  ip: text("ip"),
+});
+
+/**
+ * Correções aplicadas a uma matéria já publicada.
+ *
+ * Aparecem no pé do texto, com data e descrição. Alteração factual não se
+ * apaga em silêncio: fica registrada aqui, para o leitor ver.
+ */
+export const articleCorrections = sqliteTable("article_corrections", {
+  id: text("id").primaryKey(),
+  articleId: text("article_id").notNull().references(() => articles.id, { onDelete: "cascade" }),
+  description: text("description").notNull(),
+  correctedByUserId: text("corrected_by_user_id"),
+  requestId: text("request_id"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+/**
+ * Contadores de uso para conter abuso em formulários públicos e no login.
+ * Uma linha por chave e janela de tempo.
+ */
+export const rateLimits = sqliteTable("rate_limits", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(0),
+  windowStart: text("window_start").notNull(),
+});
+
+/**
  * Papéis de cada pessoa do painel.
  *
  * É uma tabela à parte (e não uma coluna) porque uma pessoa acumula papéis:

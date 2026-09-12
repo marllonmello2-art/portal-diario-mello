@@ -27,6 +27,9 @@ export function AdminShell({
           </Link>
           <nav>
             <Link href="/admin">Matérias</Link>
+            {hasRole(ator, "EDITOR", "EDITOR_CHEFE", "ADMINISTRADOR") ? (
+              <Link href="/admin/pedidos">Pedidos</Link>
+            ) : null}
             {hasRole(ator, "EDITOR_CHEFE", "ADMINISTRADOR") ? (
               <>
                 <Link href="/admin/editorias">Editorias</Link>

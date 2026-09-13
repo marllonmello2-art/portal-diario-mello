@@ -1,0 +1,36 @@
+# Backup semanal do banco D1 do portal.
+#
+# O D1 tem Time Travel (recuperação de até 30 dias) embutido, mas isso protege
+# contra acidente, não contra perda da conta. Este workflow guarda uma cópia
+# própria: exporta o banco inteiro e sobe o arquivo para o bucket R2, na pasta
+# backups/.
+#
+# Precisa dos mesmos secrets da publicação: CLOUDFLARE_API_TOKEN e
+# CLOUDFLARE_ACCOUNT_ID.
+name: Backup do banco
+
+on:
+  schedule:
+    # Domingos, 04h UTC (01h em Brasília).
+    - cron: "0 4 * * 0"
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Exportar o D1 e guardar no R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PORTAL_D1_NAME: diario-mello
+          PORTAL_R2_BUCKET: diario-mello-midia
+        run: |
+          set -euo pipefail
+          arquivo="diario-mello-$(date -u +%Y-%m-%d).sql"
+          npx --yes wrangler@4 d1 export "$PORTAL_D1_NAME" --remote --output "$arquivo"
+          ls -lh "$arquivo"
+          npx --yes wrangler@4 r2 object put "$PORTAL_R2_BUCKET/backups/$arquivo" \
+            --file "$arquivo" --content-type "application/sql" --remote
+          echo "Backup guardado em r2://$PORTAL_R2_BUCKET/backups/$arquivo"

@@ -257,10 +257,27 @@ export const auditLog = sqliteTable("audit_log", {
   ip: text("ip"),
 });
 
+/**
+ * Assinantes do boletim.
+ *
+ * Dupla confirmação: a inscrição nasce `pendente` e só vira `confirmado`
+ * quando a pessoa abre o link do token. Guardamos data, origem e finalidade
+ * porque é isso que a LGPD chama de registro do consentimento.
+ */
 export const newsletterSubscribers = sqliteTable("newsletter_subscribers", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
+  /** De onde veio a inscrição: rodapé, matéria, campanha. */
   source: text("source").notNull().default("site"),
+  /** Para que a pessoa consentiu. */
+  purpose: text("purpose").notNull().default("Boletim diário do Diário Mello"),
+  /** pendente | confirmado | cancelado */
+  status: text("status").notNull().default("pendente"),
+  /** Token de confirmação e de cancelamento em um clique. */
+  token: text("token"),
+  confirmedAt: text("confirmed_at"),
+  unsubscribedAt: text("unsubscribed_at"),
+  ip: text("ip"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 

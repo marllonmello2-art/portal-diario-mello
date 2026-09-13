@@ -108,6 +108,33 @@ essa papelada. A exceção é a ilustração do próprio portal, creditada como
 **Auditoria:** `/admin/auditoria` guarda login, criação, edição, mudança de
 estado, aprovação, publicação e exclusão. Linhas nunca são alteradas.
 
+## Segurança
+
+- Senha em PBKDF2-SHA256 com sal por usuário; cookies HttpOnly, Secure e SameSite=Lax.
+- Força bruta no login: 12 tentativas por endereço e 6 por conta a cada 15
+  minutos, no painel; 20 e 8 na conta de leitor. O bloqueio entra na auditoria.
+- Formulários públicos limitados (3 pedidos e 5 inscrições por hora por endereço).
+- Cabeçalhos em toda resposta: Content-Security-Policy (**Report-Only** por
+  enquanto — o site tem script inline de dados estruturados e hidratação, então
+  a política é medida antes de passar a bloquear, em `lib/portal/security-headers.ts`),
+  Strict-Transport-Security, X-Content-Type-Options, Referrer-Policy,
+  Permissions-Policy e X-Frame-Options.
+- Backup: o D1 tem Time Travel de 30 dias, e o workflow `backup-banco.yml`
+  exporta o banco todo domingo para `backups/` no R2.
+- Toda permissão é validada no servidor (`lib/portal/api-guard.ts` +
+  `lib/portal/permissions.ts`); a interface apenas esconde o que já está barrado.
+
+## Boletim e privacidade
+
+Inscrição com **dupla confirmação**: nasce pendente e só vira confirmada pelo
+link com token. Cancelamento em um clique (`/newsletter/cancelar?token=`),
+registro de data, origem e finalidade, e exclusão definitiva pelo painel. O
+leitor apaga a própria conta em "Minhas leituras".
+
+O envio de e-mail ainda não está ligado: até estar, `/admin/newsletter` mostra o
+link de confirmação para a redação enviar à mão — assim quem confirma continua
+sendo a pessoa dona do e-mail.
+
 ## Correções e direito de resposta
 
 Formulário público em `/direito-de-resposta` devolve um **protocolo**

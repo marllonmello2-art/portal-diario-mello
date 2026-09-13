@@ -381,3 +381,7 @@ body { margin: 0; }
 .dm-badge-respondido { background: #e4f0f5; color: #0f6d86; }
 .dm-badge-corrigido { background: #e4f5ec; color: #0b6e4f; }
 .dm-badge-recusado { background: #f0f1f4; color: #5c636d; }
+
+.dm-excluir-conta { border-top: 1px solid var(--dm-line); margin-top: 36px; padding-top: 22px; max-width: 560px; }
+.dm-excluir-conta h3 { font-family: var(--dm-serif); font-size: 19px; margin: 0 0 6px; color: var(--dm-ink); }
+.dm-excluir-conta p { font-size: 14.5px; color: #5c636d; margin: 0 0 12px; }

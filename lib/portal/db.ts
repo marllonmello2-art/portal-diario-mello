@@ -109,6 +109,12 @@ const DDL = [
     id TEXT PRIMARY KEY NOT NULL,
     email TEXT NOT NULL UNIQUE,
     source TEXT NOT NULL DEFAULT 'site',
+    purpose TEXT NOT NULL DEFAULT 'Boletim diário do Diário Mello',
+    status TEXT NOT NULL DEFAULT 'pendente',
+    token TEXT,
+    confirmed_at TEXT,
+    unsubscribed_at TEXT,
+    ip TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS correction_requests (
@@ -287,6 +293,28 @@ async function addMissingColumns(d1: D1Database) {
 
   await migrateEditorialStatuses(d1);
   await migrateRoles(d1);
+  await addNewsletterColumns(d1);
+}
+
+/** Colunas de consentimento do boletim, acrescentadas na fase 4. */
+async function addNewsletterColumns(d1: D1Database) {
+  const info = await d1.prepare("PRAGMA table_info(newsletter_subscribers)").all<{ name: string }>();
+  const columns = new Set((info.results ?? []).map((column: { name: string }) => column.name));
+
+  const novas: [string, string][] = [
+    [
+      "purpose",
+      "ALTER TABLE newsletter_subscribers ADD COLUMN purpose TEXT NOT NULL DEFAULT 'Boletim diário do Diário Mello'",
+    ],
+    ["status", "ALTER TABLE newsletter_subscribers ADD COLUMN status TEXT NOT NULL DEFAULT 'pendente'"],
+    ["token", "ALTER TABLE newsletter_subscribers ADD COLUMN token TEXT"],
+    ["confirmed_at", "ALTER TABLE newsletter_subscribers ADD COLUMN confirmed_at TEXT"],
+    ["unsubscribed_at", "ALTER TABLE newsletter_subscribers ADD COLUMN unsubscribed_at TEXT"],
+    ["ip", "ALTER TABLE newsletter_subscribers ADD COLUMN ip TEXT"],
+  ];
+  for (const [coluna, comando] of novas) {
+    if (!columns.has(coluna)) await d1.prepare(comando).run();
+  }
 }
 
 /**

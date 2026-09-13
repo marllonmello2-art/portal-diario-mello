@@ -1,7 +1,9 @@
 import { eq } from "drizzle-orm";
 import { readers } from "../../../../db/schema";
 import { hashPassword } from "../../../../lib/portal/auth";
+import { requestIp } from "../../../../lib/portal/audit";
 import { getPortalDb } from "../../../../lib/portal/db";
+import { checkRateLimit, tooManyRequests } from "../../../../lib/portal/rate-limit";
 import {
   checkReaderPassword,
   clearedReaderCookie,
@@ -39,6 +41,20 @@ export async function POST(request: Request) {
   const password = body.password ?? "";
   if (!email || !password) {
     return Response.json({ error: "Informe e-mail e senha." }, { status: 400 });
+  }
+
+  const ip = requestIp(request) ?? "desconhecido";
+  for (const [chave, limite] of [
+    [`leitor-ip:${ip}`, { limit: 20, windowSeconds: 900 }],
+    [`leitor-conta:${email}`, { limit: 8, windowSeconds: 900 }],
+  ] as const) {
+    const resultado = await checkRateLimit(db, chave, limite);
+    if (!resultado.ok) {
+      return tooManyRequests(
+        resultado.retryAfter,
+        "Muitas tentativas de acesso. Espere alguns minutos antes de tentar de novo.",
+      );
+    }
   }
 
   const reader = await findReaderByEmail(db, email);

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ArticleCard } from "../../components/portal/ArticleCard";
+import { DeleteAccountButton } from "../../components/portal/DeleteAccountButton";
 import { DatabaseMissing, PortalShell } from "../../components/portal/PortalShell";
 import { getPortalDb } from "../../lib/portal/db";
 import { savedArticles } from "../../lib/portal/queries";
@@ -49,6 +50,8 @@ export default async function SavedPage() {
             <Link href="/">Ver a capa</Link>.
           </p>
         )}
+
+        <DeleteAccountButton />
       </div>
     </PortalShell>
   );

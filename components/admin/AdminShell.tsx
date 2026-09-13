@@ -34,6 +34,7 @@ export function AdminShell({
               <>
                 <Link href="/admin/editorias">Editorias</Link>
                 <Link href="/admin/autores">Autores</Link>
+                <Link href="/admin/newsletter">Boletim</Link>
                 <Link href="/admin/auditoria">Auditoria</Link>
               </>
             ) : null}

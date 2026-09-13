@@ -5,6 +5,7 @@ import {
   DEFAULT_IMAGE_SIZES,
 } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import { withSecurityHeaders } from "../lib/portal/security-headers";
 
 interface Env {
   ASSETS: Fetcher;
@@ -33,7 +34,7 @@ const worker = {
     // Otimização das imagens estáticas servidas pelo próprio site.
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
-      return handleImageOptimization(
+      const otimizada = await handleImageOptimization(
         request,
         {
           fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),
@@ -46,9 +47,11 @@ const worker = {
         },
         allowedWidths,
       );
+      return withSecurityHeaders(otimizada);
     }
 
-    return handler.fetch(request, env, ctx);
+    // Todo o resto passa pelo app — e sai com os cabeçalhos de segurança.
+    return withSecurityHeaders(await handler.fetch(request, env, ctx));
   },
 };
 

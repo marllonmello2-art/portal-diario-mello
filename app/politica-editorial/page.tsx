@@ -19,7 +19,49 @@ export default function EditorialPolicyPage() {
       <p>
         O {BRAND.name} é um veículo brasileiro de informação, independente e sem vínculo com
         partido, governo, igreja ou grupo econômico. A direção responde pelo conteúdo publicado;
-        o expediente está em <Link href="/expediente">Expediente</Link>.
+        o expediente está em <Link href="/expediente">Expediente</Link>. Esta política vale para a
+        fase atual do portal e será atualizada quando a linha editorial mudar.
+      </p>
+
+      <h2>Nossa linha: informação que dura</h2>
+      <p>
+        O {BRAND.name} publica material de longa duração — explicação, história, serviço com fonte
+        oficial, agenda cultural. É conteúdo que serve ao leitor no mês que vem tanto quanto hoje, e
+        que pode ser checado com calma antes de ir ao ar.
+      </p>
+      <p>
+        Toda matéria carrega o tipo dela: conteúdo permanente (revisto a cada seis meses),
+        tecnologia e serviço (a cada três), agenda (sai do site depois do evento) e informação com
+        prazo (sai depois da data). Nada fica no ar envelhecendo em silêncio.
+      </p>
+
+      <h2>O que não publicamos nesta fase</h2>
+      <p>
+        Por decisão de risco, e não por censura, o portal não cobre:
+      </p>
+      <ul>
+        <li>Política partidária, eleições e declarações de autoridades.</li>
+        <li>Crimes, denúncias, investigações e acusações.</li>
+        <li>Vida pessoal, rumores e fofoca.</li>
+        <li>Diagnóstico, medicamento ou aconselhamento médico.</li>
+        <li>Recomendação de investimento ou promessa de ganho.</li>
+        <li>Comparação, avaliação ou crítica a empresas e pessoas identificáveis.</li>
+        <li>Notícia urgente e cobertura em tempo real.</li>
+        <li>Texto copiado ou resumido de outro veículo.</li>
+      </ul>
+      <p>
+        Um portal pequeno que erra numa acusação responde na Justiça com o mesmo peso de um grande —
+        sem o departamento jurídico que o grande tem. Preferimos crescer primeiro no que sabemos
+        sustentar.
+      </p>
+
+      <h2>O selo de baixo risco</h2>
+      <p>
+        Antes de ser aprovada, cada matéria precisa passar por quatro confirmações da redação: usa
+        fonte oficial, livro ou documento verificável; não acusa, expõe nem avalia pessoa
+        identificável; não dá conselho médico, jurídico ou financeiro individual; e usa imagem
+        própria, licenciada ou gerada por IA e identificada. O sistema recusa a aprovação enquanto
+        faltar qualquer uma — inclusive para o editor-chefe.
       </p>
 
       <h2>Como apuramos</h2>

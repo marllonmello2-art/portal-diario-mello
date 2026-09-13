@@ -5,7 +5,7 @@
  * quando está `scheduled` e a data de publicação já passou. Isso faz o
  * agendamento funcionar sem precisar de cron.
  */
-import { and, desc, eq, inArray, like, lte, ne, notInArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, like, lte, ne, notInArray, or, sql } from "drizzle-orm";
 import { PUBLIC_STATUSES } from "./permissions";
 import { NOT_FEATURABLE } from "./classification";
 import { articleTags, articles, authors, categories, readerSavedArticles, tags } from "../../db/schema";
@@ -23,6 +23,11 @@ export type ArticleCard = {
   coverCredit: string | null;
   status: string;
   classification: string;
+  contentType: string;
+  reviewDueAt: string | null;
+  lastReviewedAt: string | null;
+  eventDate: string | null;
+  expiresAt: string | null;
   accessLevel: string;
   origin: string;
   aiAssisted: number;
@@ -44,6 +49,10 @@ export type ArticleFull = ArticleCard & {
   coverSource: string | null;
   coverLicense: string | null;
   coverAiGenerated: number;
+  riskSourceOk: number;
+  riskNoPersonOk: number;
+  riskNoAdviceOk: number;
+  riskImageOk: number;
   authorBio: string | null;
   categoryId: string | null;
   authorId: string | null;
@@ -58,6 +67,11 @@ const cardColumns = {
   coverCredit: articles.coverCredit,
   status: articles.status,
   classification: articles.classification,
+  contentType: articles.contentType,
+  reviewDueAt: articles.reviewDueAt,
+  lastReviewedAt: articles.lastReviewedAt,
+  eventDate: articles.eventDate,
+  expiresAt: articles.expiresAt,
   accessLevel: articles.accessLevel,
   origin: articles.origin,
   aiAssisted: articles.aiAssisted,
@@ -80,13 +94,28 @@ const cardColumns = {
  * Publicada ou corrigida aparece; agendada aparece quando a hora chega. Todo
  * o resto (rascunho, apuração, revisão, aprovada, arquivada) é invisível fora
  * do painel — inclusive para buscadores.
+ *
+ * Some daqui matéria de agenda cujo evento já passou e informação cujo prazo
+ * venceu: o arquivamento é automático, medido na consulta, sem depender de
+ * ninguém lembrar de tirar do ar.
  */
 function visible() {
   const now = new Date().toISOString();
-  return or(
+  const hoje = now.slice(0, 10);
+
+  const noAr = or(
     inArray(articles.status, PUBLIC_STATUSES),
     and(eq(articles.status, "AGENDADA"), lte(articles.publishedAt, now)),
   );
+
+  const dentroDoPrazo = and(
+    // Agenda: vale até o fim do dia do evento.
+    or(ne(articles.contentType, "AGENDA"), isNull(articles.eventDate), gte(articles.eventDate, hoje)),
+    // Informação com prazo: vale até a data informada.
+    or(isNull(articles.expiresAt), gte(articles.expiresAt, hoje)),
+  );
+
+  return and(noAr, dentroDoPrazo);
 }
 
 function baseSelect(db: PortalDb) {
@@ -166,6 +195,10 @@ export async function getArticleBySlug(db: PortalDb, slug: string): Promise<Arti
       coverSource: articles.coverSource,
       coverLicense: articles.coverLicense,
       coverAiGenerated: articles.coverAiGenerated,
+      riskSourceOk: articles.riskSourceOk,
+      riskNoPersonOk: articles.riskNoPersonOk,
+      riskNoAdviceOk: articles.riskNoAdviceOk,
+      riskImageOk: articles.riskImageOk,
       categoryId: articles.categoryId,
       authorId: articles.authorId,
       authorBio: authors.bio,
@@ -186,6 +219,10 @@ export async function getArticleById(db: PortalDb, id: string): Promise<ArticleF
       coverSource: articles.coverSource,
       coverLicense: articles.coverLicense,
       coverAiGenerated: articles.coverAiGenerated,
+      riskSourceOk: articles.riskSourceOk,
+      riskNoPersonOk: articles.riskNoPersonOk,
+      riskNoAdviceOk: articles.riskNoAdviceOk,
+      riskImageOk: articles.riskImageOk,
       categoryId: articles.categoryId,
       authorId: articles.authorId,
       authorBio: authors.bio,
@@ -198,7 +235,19 @@ export async function getArticleById(db: PortalDb, id: string): Promise<ArticleF
   return row ?? null;
 }
 
-export function isVisible(article: { status: string; publishedAt: string | null }): boolean {
+export function isVisible(article: {
+  status: string;
+  publishedAt: string | null;
+  contentType?: string | null;
+  eventDate?: string | null;
+  expiresAt?: string | null;
+}): boolean {
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  // Prazo vencido tira do ar mesmo uma matéria publicada.
+  if (article.contentType === "AGENDA" && article.eventDate && article.eventDate < hoje) return false;
+  if (article.expiresAt && article.expiresAt < hoje) return false;
+
   if ((PUBLIC_STATUSES as string[]).includes(article.status)) return true;
   if (article.status === "AGENDADA" && article.publishedAt) {
     return new Date(article.publishedAt).getTime() <= Date.now();
@@ -299,6 +348,29 @@ export async function isArticleSaved(
     .where(and(eq(readerSavedArticles.readerId, readerId), eq(readerSavedArticles.articleId, articleId)))
     .limit(1);
   return Boolean(row);
+}
+
+/**
+ * Fila de manutenção: o que está no ar e já passou da data de revisão, mais o
+ * que saiu do ar sozinho por vencimento.
+ */
+export async function maintenanceQueue(db: PortalDb): Promise<ArticleCard[]> {
+  const agora = new Date().toISOString();
+  const hoje = agora.slice(0, 10);
+
+  return baseSelect(db)
+    .where(
+      and(
+        inArray(articles.status, PUBLIC_STATUSES),
+        or(
+          lte(articles.reviewDueAt, agora),
+          and(eq(articles.contentType, "AGENDA"), lte(articles.eventDate, hoje)),
+          lte(articles.expiresAt, hoje),
+        ),
+      ),
+    )
+    .orderBy(articles.reviewDueAt)
+    .limit(100);
 }
 
 /** Lista do painel: todos os status, com filtros opcionais. */

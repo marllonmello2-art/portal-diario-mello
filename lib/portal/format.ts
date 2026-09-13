@@ -26,10 +26,30 @@ function parse(value: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/** "2026-09-14" — data sem hora, como vem de um <input type="date">. */
+const SOMENTE_DATA = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Datas sem hora não podem passar por conversão de fuso.
+ *
+ * "2026-09-14" vira meia-noite UTC, que em São Paulo é dia 13 às 21h — e o
+ * evento de amanhã aparecia como o de hoje. Para esses valores formatamos em
+ * UTC, que é o mesmo dia que a pessoa digitou.
+ */
+const DATE_ONLY_FORMAT = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
 /** "11 de setembro de 2026". */
 export function formatDate(value: string | null | undefined): string {
   const date = parse(value);
-  return date ? DATE_FORMAT.format(date) : "";
+  if (!date) return "";
+  return value && SOMENTE_DATA.test(value)
+    ? DATE_ONLY_FORMAT.format(date)
+    : DATE_FORMAT.format(date);
 }
 
 /** "11 de setembro de 2026 às 07:13". */

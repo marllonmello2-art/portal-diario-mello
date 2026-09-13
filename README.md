@@ -67,6 +67,30 @@ A sessão do leitor usa um cookie próprio (`dm_leitor`, 30 dias) e um público
 diferente no token: uma sessão de leitor nunca abre o painel, e a do painel não
 vale como leitor.
 
+## Linha editorial: informação que dura
+
+O portal publica material de longa duração — cultura e história, tecnologia
+prática, educação e explicação, serviço com fonte oficial, agenda cultural e
+esporte informativo. Cobertura factual em tempo real (política partidária,
+crime, denúncia, "última hora") fica fora por decisão de risco.
+
+**Ciclo de vida.** Cada matéria declara o tipo, e o tipo define a manutenção:
+
+| Tipo | Revisão | No site |
+| --- | --- | --- |
+| Conteúdo permanente | 6 meses | Sempre |
+| Tecnologia e serviço | 3 meses | Sempre |
+| Agenda | na data do evento | Sai sozinha depois do evento |
+| Informação com prazo | na data limite | Sai sozinha depois do prazo |
+
+O vencimento é medido na consulta ao banco: nada depende de alguém lembrar de
+tirar do ar, e o painel mostra a fila do que precisa de revisão.
+
+**Selo de baixo risco.** Nenhuma matéria é aprovada sem as quatro confirmações
+da redação — fonte verificável, sem pessoa identificável exposta, sem conselho
+médico/jurídico/financeiro, imagem regular — mais a data que o tipo exige. A
+trava está no servidor e vale para o editor-chefe também.
+
 ## Governança editorial
 
 O painel é uma redação com fluxo, papéis e trilha de auditoria.

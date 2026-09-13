@@ -56,6 +56,20 @@ export const articles = sqliteTable("articles", {
    * ANALISE ou CORRECAO. Aparece para o leitor no site.
    */
   classification: text("classification").notNull().default("NOTICIA"),
+  /** PERMANENTE | TECNOLOGIA_SERVICO | AGENDA | PRAZO — define a manutenção. */
+  contentType: text("content_type").notNull().default("PERMANENTE"),
+  /** Quando esta matéria precisa ser olhada de novo. */
+  reviewDueAt: text("review_due_at"),
+  lastReviewedAt: text("last_reviewed_at"),
+  /** Data do evento, para a agenda: depois dela a matéria sai do site. */
+  eventDate: text("event_date"),
+  /** Até quando a informação vale, para conteúdo com prazo. */
+  expiresAt: text("expires_at"),
+  /* Confirmações da redação para o selo de baixo risco. */
+  riskSourceOk: integer("risk_source_ok").notNull().default(0),
+  riskNoPersonOk: integer("risk_no_person_ok").notNull().default(0),
+  riskNoAdviceOk: integer("risk_no_advice_ok").notNull().default(0),
+  riskImageOk: integer("risk_image_ok").notNull().default(0),
   /**
    * Quem pode ler o texto completo:
    * `public` — qualquer visitante;

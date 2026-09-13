@@ -226,15 +226,31 @@ const DDL = [
   `CREATE INDEX IF NOT EXISTS articles_category_idx ON articles(category_id, published_at)`,
 ];
 
-/** Editorias iniciais pedidas na pauta do portal. */
+/**
+ * Editorias do portal.
+ *
+ * A linha editorial é de conteúdo que dura: explicação, história, serviço com
+ * fonte oficial. Cobertura factual em tempo real (política partidária, crime,
+ * denúncia) fica de fora por decisão de risco, não por falta de interesse.
+ */
 const SEED_CATEGORIES: { name: string; color: string }[] = [
-  { name: "Política", color: "#c8102e" },
-  { name: "Economia", color: "#0b6e4f" },
-  { name: "Esportes", color: "#1b5fc1" },
-  { name: "Cultura", color: "#8b3fbf" },
-  { name: "Internacional", color: "#0f7c8c" },
-  { name: "Tecnologia", color: "#2b2f77" },
-  { name: "Opinião", color: "#b5651d" },
+  { name: "Cultura e história", color: "#8b3fbf" },
+  { name: "Tecnologia prática", color: "#2b2f77" },
+  { name: "Educação e explicação", color: "#0b6e4f" },
+  { name: "Serviço", color: "#0f7c8c" },
+  { name: "Agenda cultural", color: "#b5651d" },
+  { name: "Esporte informativo", color: "#1b5fc1" },
+];
+
+/** Editorias da versão anterior do portal, aposentadas na virada de linha. */
+const RETIRED_CATEGORY_SLUGS = [
+  "politica",
+  "economia",
+  "esportes",
+  "cultura",
+  "internacional",
+  "tecnologia",
+  "opiniao",
 ];
 
 let bootstrapPromise: Promise<void> | null = null;
@@ -286,6 +302,16 @@ async function addMissingColumns(d1: D1Database) {
     ["cover_obtained_at", "ALTER TABLE articles ADD COLUMN cover_obtained_at TEXT"],
     ["cover_usage_note", "ALTER TABLE articles ADD COLUMN cover_usage_note TEXT"],
     ["cover_ai_generated", "ALTER TABLE articles ADD COLUMN cover_ai_generated INTEGER NOT NULL DEFAULT 0"],
+    // Fase 5: ciclo de vida do conteúdo e selo de baixo risco.
+    ["content_type", "ALTER TABLE articles ADD COLUMN content_type TEXT NOT NULL DEFAULT 'PERMANENTE'"],
+    ["review_due_at", "ALTER TABLE articles ADD COLUMN review_due_at TEXT"],
+    ["last_reviewed_at", "ALTER TABLE articles ADD COLUMN last_reviewed_at TEXT"],
+    ["event_date", "ALTER TABLE articles ADD COLUMN event_date TEXT"],
+    ["expires_at", "ALTER TABLE articles ADD COLUMN expires_at TEXT"],
+    ["risk_source_ok", "ALTER TABLE articles ADD COLUMN risk_source_ok INTEGER NOT NULL DEFAULT 0"],
+    ["risk_no_person_ok", "ALTER TABLE articles ADD COLUMN risk_no_person_ok INTEGER NOT NULL DEFAULT 0"],
+    ["risk_no_advice_ok", "ALTER TABLE articles ADD COLUMN risk_no_advice_ok INTEGER NOT NULL DEFAULT 0"],
+    ["risk_image_ok", "ALTER TABLE articles ADD COLUMN risk_image_ok INTEGER NOT NULL DEFAULT 0"],
   ];
   for (const [coluna, comando] of novas) {
     if (!columns.has(coluna)) await d1.prepare(comando).run();
@@ -294,6 +320,53 @@ async function addMissingColumns(d1: D1Database) {
   await migrateEditorialStatuses(d1);
   await migrateRoles(d1);
   await addNewsletterColumns(d1);
+  await switchEditorialLine(d1);
+}
+
+/**
+ * Troca as editorias antigas pelas da nova linha editorial.
+ *
+ * Roda uma vez só, marcada em portal_settings. As matérias das editorias
+ * antigas não são apagadas: ficam sem editoria, à espera de reclassificação no
+ * painel — perder texto para arrumar menu seria um péssimo negócio.
+ */
+async function switchEditorialLine(d1: D1Database) {
+  const feito = await d1
+    .prepare("SELECT value FROM portal_settings WHERE key = 'linha_editorial_2026' LIMIT 1")
+    .first<{ value: string }>();
+  if (feito?.value) return;
+
+  const novas = SEED_CATEGORIES.map((categoria, index) =>
+    d1
+      .prepare(
+        "INSERT OR IGNORE INTO categories (id, name, slug, color, position) VALUES (?, ?, ?, ?, ?)",
+      )
+      .bind(crypto.randomUUID(), categoria.name, slugify(categoria.name), categoria.color, index),
+  );
+  await d1.batch(novas);
+
+  const aposentar = RETIRED_CATEGORY_SLUGS.filter(
+    (slug) => !SEED_CATEGORIES.some((categoria) => slugify(categoria.name) === slug),
+  );
+  for (const slug of aposentar) {
+    const categoria = await d1
+      .prepare("SELECT id FROM categories WHERE slug = ? LIMIT 1")
+      .bind(slug)
+      .first<{ id: string }>();
+    if (!categoria) continue;
+    await d1
+      .prepare("UPDATE articles SET category_id = NULL WHERE category_id = ?")
+      .bind(categoria.id)
+      .run();
+    await d1.prepare("DELETE FROM categories WHERE id = ?").bind(categoria.id).run();
+  }
+
+  await d1
+    .prepare(
+      "INSERT OR REPLACE INTO portal_settings (key, value) VALUES ('linha_editorial_2026', ?)",
+    )
+    .bind(new Date().toISOString())
+    .run();
 }
 
 /** Colunas de consentimento do boletim, acrescentadas na fase 4. */

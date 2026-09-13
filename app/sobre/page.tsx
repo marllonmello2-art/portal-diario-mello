@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { PortalShell } from "../../components/portal/PortalShell";
 import { BRAND } from "../../lib/portal/brand";
@@ -21,10 +22,17 @@ export default function AboutPage() {
             nasce de um compromisso pessoal: publicar apenas o que a redação consegue apurar e
             sustentar. O nome na porta é o mesmo que assina cada edição.
           </p>
-          <h2>O que cobrimos</h2>
+          <h2>O que publicamos</h2>
           <p>
-            Política, economia, esportes, cultura, internacional, tecnologia e opinião — com destaque
-            diário na capa e uma newsletter que resume o que importou no dia.
+            Conteúdo que continua útil meses depois da publicação: cultura e história, tecnologia
+            prática, explicações sobre como as coisas funcionam, serviço com fonte oficial, agenda
+            cultural e esporte informativo.
+          </p>
+          <p>
+            Não fazemos cobertura factual em tempo real — política partidária, crime, denúncia,
+            “última hora”. Não é falta de interesse: é escolha de um veículo que prefere publicar
+            pouco e bem checado a publicar rápido e corrigir depois. A lista completa do que fica
+            de fora está na <Link href="/politica-editorial">política editorial</Link>.
           </p>
           <h2>Como trabalhamos</h2>
           <p>

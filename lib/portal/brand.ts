@@ -14,9 +14,9 @@ export const BRAND = {
   nameLast: "Mello",
   /** Sigla usada no selo quadrado do cabeçalho e no favicon. */
   initials: "DM",
-  tagline: "Jornalismo independente, todos os dias.",
+  tagline: "Informação que dura, explicada com calma.",
   description:
-    "Diário Mello: notícias de política, economia, esportes, cultura, internacional, tecnologia e opinião com apuração própria.",
+    "Diário Mello: cultura e história, tecnologia prática, explicações, serviço com fonte oficial e agenda cultural — material que continua útil meses depois.",
   /** Vermelho de jornal tradicional — cor de destaque do portal. */
   accent: "#c8102e",
   locale: "pt-BR",

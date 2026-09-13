@@ -9,6 +9,14 @@ import {
   CLASSIFICATION_HINT,
   CLASSIFICATION_LABEL,
 } from "../../lib/portal/classification";
+import {
+  CONTENT_TYPES,
+  CONTENT_TYPE_HINT,
+  CONTENT_TYPE_LABEL,
+  LOW_RISK_LABELS,
+  checkLowRisk,
+  nextReviewDate,
+} from "../../lib/portal/lifecycle";
 import { requestJson } from "../../lib/portal/http";
 import { Img } from "../portal/Img";
 
@@ -31,6 +39,14 @@ export type EditorArticle = {
   origin: string;
   aiAssisted: number;
   classification: string;
+  contentType: string;
+  reviewDueAt: string | null;
+  eventDate: string | null;
+  expiresAt: string | null;
+  riskSourceOk: number;
+  riskNoPersonOk: number;
+  riskNoAdviceOk: number;
+  riskImageOk: number;
   coverSource: string | null;
   coverLicense: string | null;
   coverObtainedAt: string | null;
@@ -72,6 +88,33 @@ export function ArticleEditor({
   const [featured, setFeatured] = useState(Boolean(article?.featured));
   const [accessLevel, setAccessLevel] = useState(article?.accessLevel ?? "public");
   const [classification, setClassification] = useState(article?.classification ?? "NOTICIA");
+  const [contentType, setContentType] = useState(article?.contentType ?? "PERMANENTE");
+  const [eventDate, setEventDate] = useState(article?.eventDate ?? "");
+  const [expiresAt, setExpiresAt] = useState(article?.expiresAt ?? "");
+  const [reviewDueAt, setReviewDueAt] = useState((article?.reviewDueAt ?? "").slice(0, 10));
+  const [risco, setRisco] = useState({
+    fonteVerificavel: Boolean(article?.riskSourceOk),
+    semPessoaExposta: Boolean(article?.riskNoPersonOk),
+    semAconselhamento: Boolean(article?.riskNoAdviceOk),
+    imagemRegular: Boolean(article?.riskImageOk),
+  });
+
+  // O mesmo cálculo que o servidor faz antes de deixar aprovar.
+  const selo = checkLowRisk({
+    checklist: risco,
+    contentType: contentType as (typeof CONTENT_TYPES)[number],
+    reviewDueAt: reviewDueAt || null,
+    eventDate: eventDate || null,
+    expiresAt: expiresAt || null,
+  });
+
+  function sugerirRevisao(tipo: string) {
+    const sugestao = nextReviewDate(tipo as (typeof CONTENT_TYPES)[number], new Date(), {
+      eventDate: eventDate || null,
+      expiresAt: expiresAt || null,
+    });
+    if (sugestao) setReviewDueAt(sugestao.slice(0, 10));
+  }
   const [coverSource, setCoverSource] = useState(article?.coverSource ?? "");
   const [coverLicense, setCoverLicense] = useState(article?.coverLicense ?? "");
   const [coverObtainedAt, setCoverObtainedAt] = useState(article?.coverObtainedAt ?? "");
@@ -133,6 +176,14 @@ export function ArticleEditor({
       coverUsageNote: coverUsageNote || null,
       coverAiGenerated,
       classification,
+      contentType,
+      eventDate: eventDate || null,
+      expiresAt: expiresAt || null,
+      reviewDueAt: reviewDueAt || null,
+      riskSourceOk: risco.fonteVerificavel,
+      riskNoPersonOk: risco.semPessoaExposta,
+      riskNoAdviceOk: risco.semAconselhamento,
+      riskImageOk: risco.imagemRegular,
       tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
       accessLevel,
       featured,
@@ -298,6 +349,71 @@ export function ArticleEditor({
             </div>
 
             <div className="dm-field">
+              <label htmlFor="dm-tipo">Tipo de conteúdo</label>
+              <select
+                id="dm-tipo"
+                value={contentType}
+                disabled={readOnly}
+                onChange={(event) => {
+                  setContentType(event.target.value);
+                  sugerirRevisao(event.target.value);
+                }}
+              >
+                {CONTENT_TYPES.map((item) => (
+                  <option key={item} value={item}>
+                    {CONTENT_TYPE_LABEL[item]}
+                  </option>
+                ))}
+              </select>
+              <small>{CONTENT_TYPE_HINT[contentType as (typeof CONTENT_TYPES)[number]]}</small>
+            </div>
+
+            {contentType === "AGENDA" ? (
+              <div className="dm-field">
+                <label htmlFor="dm-evento">Data do evento</label>
+                <input
+                  id="dm-evento"
+                  type="date"
+                  value={eventDate}
+                  disabled={readOnly}
+                  onChange={(event) => setEventDate(event.target.value)}
+                />
+                <small>Depois dessa data a matéria sai do site sozinha.</small>
+              </div>
+            ) : null}
+
+            {contentType === "PRAZO" ? (
+              <div className="dm-field">
+                <label htmlFor="dm-prazo">Vale até</label>
+                <input
+                  id="dm-prazo"
+                  type="date"
+                  value={expiresAt}
+                  disabled={readOnly}
+                  onChange={(event) => setExpiresAt(event.target.value)}
+                />
+                <small>Passada a data, a matéria deixa de aparecer no site.</small>
+              </div>
+            ) : null}
+
+            {contentType === "PERMANENTE" || contentType === "TECNOLOGIA_SERVICO" ? (
+              <div className="dm-field">
+                <label htmlFor="dm-revisao">Próxima revisão</label>
+                <input
+                  id="dm-revisao"
+                  type="date"
+                  value={reviewDueAt}
+                  disabled={readOnly}
+                  onChange={(event) => setReviewDueAt(event.target.value)}
+                />
+                <small>
+                  Sugestão automática ao escolher o tipo: 6 meses para permanente, 3 para
+                  tecnologia e serviço.
+                </small>
+              </div>
+            ) : null}
+
+            <div className="dm-field">
               <label htmlFor="dm-access">Quem pode ler</label>
               <select
                 id="dm-access"
@@ -328,6 +444,34 @@ export function ArticleEditor({
               <input type="checkbox" checked={featured} onChange={(event) => setFeatured(event.target.checked)} />
               Destaque principal da capa
             </label>
+          </div>
+
+          <div className="dm-panel">
+            <h2>Selo de baixo risco</h2>
+            <p className="dm-interno">
+              As quatro confirmações abaixo são obrigatórias para a matéria ser aprovada. Elas
+              existem para manter o portal longe de disputa jurídica.
+            </p>
+
+            {(Object.keys(LOW_RISK_LABELS) as (keyof typeof LOW_RISK_LABELS)[]).map((chave) => (
+              <label key={chave} className="dm-check">
+                <input
+                  type="checkbox"
+                  checked={risco[chave]}
+                  disabled={readOnly}
+                  onChange={(event) => setRisco({ ...risco, [chave]: event.target.checked })}
+                />
+                <span>{LOW_RISK_LABELS[chave]}</span>
+              </label>
+            ))}
+
+            {selo.ok ? (
+              <p className="dm-note dm-note-ok">Selo completo: a matéria pode ser aprovada.</p>
+            ) : (
+              <p className="dm-aviso">
+                Falta para o selo: {selo.faltando.join("; ")}.
+              </p>
+            )}
 
           </div>
 

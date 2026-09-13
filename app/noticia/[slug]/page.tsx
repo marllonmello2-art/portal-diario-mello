@@ -24,7 +24,7 @@ import {
   ClassificationTag,
 } from "../../../components/portal/ClassificationTag";
 import { listCorrections } from "../../../lib/portal/corrections";
-import { formatDateTime as formatCorrecao } from "../../../lib/portal/format";
+import { formatDate, formatDateTime as formatCorrecao } from "../../../lib/portal/format";
 import { SaveArticleButton } from "../../../components/portal/SaveArticleButton";
 import { currentReader } from "../../../lib/portal/session-server";
 
@@ -205,6 +205,18 @@ export default async function ArticlePage({ params }: PageProps) {
               }
             />
           )}
+
+          <p className="dm-validade">
+            {article.contentType === "AGENDA" && article.eventDate
+              ? `Agenda: evento em ${formatDate(article.eventDate)}. Esta página sai do ar depois dessa data.`
+              : article.contentType === "PRAZO" && article.expiresAt
+                ? `Informação válida até ${formatDate(article.expiresAt)}.`
+                : article.lastReviewedAt
+                  ? `Conteúdo revisado em ${formatDate(article.lastReviewedAt)}${
+                      article.reviewDueAt ? `. Próxima revisão prevista para ${formatDate(article.reviewDueAt)}` : ""
+                    }.`
+                  : ""}
+          </p>
 
           {correcoes.length ? (
             <section className="dm-correcoes" aria-labelledby="dm-correcoes-titulo">

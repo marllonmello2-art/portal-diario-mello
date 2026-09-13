@@ -10,6 +10,13 @@ import {
   requiresConfirmedSource,
   type Classification,
 } from "./classification";
+import {
+  checkLowRisk,
+  isContentType,
+  nextReviewDate,
+  type ContentType,
+  type LowRiskChecklist,
+} from "./lifecycle";
 import { AI_IMAGE_CREDIT, checkCoverRights } from "./media-rights";
 import { hasConfirmedSource } from "./sources";
 import type { PortalDb } from "./db";
@@ -44,6 +51,14 @@ export type ArticleInput = {
   publishedAt?: string | null;
   featured?: boolean;
   classification?: string | null;
+  contentType?: string | null;
+  eventDate?: string | null;
+  expiresAt?: string | null;
+  reviewDueAt?: string | null;
+  riskSourceOk?: boolean;
+  riskNoPersonOk?: boolean;
+  riskNoAdviceOk?: boolean;
+  riskImageOk?: boolean;
   coverSource?: string | null;
   coverLicense?: string | null;
   coverObtainedAt?: string | null;
@@ -55,6 +70,26 @@ export type ArticleInput = {
   origin?: string | null;
   aiAssisted?: boolean;
 };
+
+/** Tipo desconhecido vira conteúdo permanente, o de manutenção mais leve. */
+export function normalizeContentType(value: string | null | undefined): ContentType {
+  return value && isContentType(value) ? value : "PERMANENTE";
+}
+
+/** Checklist do selo de baixo risco, a partir das colunas da matéria. */
+export function checklistFromRow(row: {
+  riskSourceOk: number;
+  riskNoPersonOk: number;
+  riskNoAdviceOk: number;
+  riskImageOk: number;
+}): LowRiskChecklist {
+  return {
+    fonteVerificavel: Boolean(row.riskSourceOk),
+    semPessoaExposta: Boolean(row.riskNoPersonOk),
+    semAconselhamento: Boolean(row.riskNoAdviceOk),
+    imagemRegular: Boolean(row.riskImageOk),
+  };
+}
 
 /** Classificação desconhecida vira notícia — o nível mais exigente. */
 export function normalizeClassification(value: string | null | undefined): Classification {
@@ -171,6 +206,14 @@ export async function createArticle(db: PortalDb, input: ArticleInput) {
     coverUsageNote: input.coverUsageNote?.trim() || null,
     coverAiGenerated: aiCover ? 1 : 0,
     classification: normalizeClassification(input.classification),
+    contentType: normalizeContentType(input.contentType),
+    eventDate: input.eventDate || null,
+    expiresAt: input.expiresAt || null,
+    reviewDueAt: input.reviewDueAt || null,
+    riskSourceOk: input.riskSourceOk ? 1 : 0,
+    riskNoPersonOk: input.riskNoPersonOk ? 1 : 0,
+    riskNoAdviceOk: input.riskNoAdviceOk ? 1 : 0,
+    riskImageOk: input.riskImageOk ? 1 : 0,
     categoryId: await resolveCategoryId(db, input),
     authorId: await resolveAuthorId(db, input),
     status,
@@ -232,6 +275,21 @@ export async function updateArticle(db: PortalDb, id: string, input: Partial<Art
         input.classification === undefined
           ? current.classification
           : normalizeClassification(input.classification),
+      contentType:
+        input.contentType === undefined
+          ? current.contentType
+          : normalizeContentType(input.contentType),
+      eventDate: input.eventDate === undefined ? current.eventDate : input.eventDate || null,
+      expiresAt: input.expiresAt === undefined ? current.expiresAt : input.expiresAt || null,
+      reviewDueAt: input.reviewDueAt === undefined ? current.reviewDueAt : input.reviewDueAt || null,
+      riskSourceOk:
+        input.riskSourceOk === undefined ? current.riskSourceOk : input.riskSourceOk ? 1 : 0,
+      riskNoPersonOk:
+        input.riskNoPersonOk === undefined ? current.riskNoPersonOk : input.riskNoPersonOk ? 1 : 0,
+      riskNoAdviceOk:
+        input.riskNoAdviceOk === undefined ? current.riskNoAdviceOk : input.riskNoAdviceOk ? 1 : 0,
+      riskImageOk:
+        input.riskImageOk === undefined ? current.riskImageOk : input.riskImageOk ? 1 : 0,
       categoryId:
         input.categoryId === undefined && input.categorySlug === undefined
           ? current.categoryId
@@ -301,6 +359,26 @@ export async function transitionArticle(
     }
   }
 
+  // Selo de baixo risco: é o compromisso editorial desta fase do portal, e
+  // vale para qualquer perfil — inclusive o editor-chefe.
+  if (to === "APROVADA") {
+    const tipo = normalizeContentType(current.contentType);
+    const selo = checkLowRisk({
+      checklist: checklistFromRow(current),
+      contentType: tipo,
+      reviewDueAt: current.reviewDueAt,
+      eventDate: current.eventDate,
+      expiresAt: current.expiresAt,
+    });
+    if (!selo.ok) {
+      return {
+        ok: false,
+        reason: `Falta para o selo de baixo risco: ${selo.faltando.join("; ")}.`,
+        code: "FORBIDDEN",
+      };
+    }
+  }
+
   // Direitos de imagem: não se publica capa sem crédito e origem.
   if (to === "PUBLICADA" || to === "AGENDADA" || to === "CORRIGIDA") {
     const direitos = checkCoverRights({
@@ -322,6 +400,13 @@ export async function transitionArticle(
   if (to === "PUBLICADA" || to === "CORRIGIDA") {
     mudancas.publishedByUserId = actor.id ?? null;
     mudancas.publishedAt = current.publishedAt ?? agora;
+    // Toda ida ao ar conta como revisão e agenda a próxima.
+    mudancas.lastReviewedAt = agora;
+    mudancas.reviewDueAt =
+      nextReviewDate(normalizeContentType(current.contentType), new Date(agora), {
+        eventDate: current.eventDate,
+        expiresAt: current.expiresAt,
+      }) ?? current.reviewDueAt;
   }
   if (to === "AGENDADA") {
     const quando = options.scheduledFor ? new Date(options.scheduledFor) : null;

@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { AdminShell } from "../../components/admin/AdminShell";
 import { getPortalDb } from "../../lib/portal/db";
 import { formatShort } from "../../lib/portal/format";
-import { adminListArticles, listCategories } from "../../lib/portal/queries";
+import { adminListArticles, listCategories, maintenanceQueue } from "../../lib/portal/queries";
+import { CONTENT_TYPE_LABEL } from "../../lib/portal/lifecycle";
 import { requireAdmin } from "../../lib/portal/session-server";
 import {
   AUTHORING_STATUSES,
@@ -54,7 +55,7 @@ export default async function AdminHome({
     );
   }
 
-  const [articles, categories] = await Promise.all([
+  const [articles, categories, manutencao] = await Promise.all([
     adminListArticles(db, {
       status: filters.status || undefined,
       categoryId: filters.editoria || undefined,
@@ -62,6 +63,9 @@ export default async function AdminHome({
       onlyAuthorUserId: soVeOProprio ? session.sub : undefined,
     }),
     listCategories(db),
+    hasRole(session, "EDITOR", "EDITOR_CHEFE", "ADMINISTRADOR")
+      ? maintenanceQueue(db)
+      : Promise.resolve([]),
   ]);
 
   const noAr = articles.filter((article) => PUBLIC_STATUSES.includes(article.status as never)).length;
@@ -106,6 +110,47 @@ export default async function AdminHome({
           <span>No ar</span>
         </div>
       </div>
+
+      {manutencao.length ? (
+        <div className="dm-panel">
+          <h2>Precisa de revisão</h2>
+          <p className="dm-note" style={{ color: "#6b7280", marginTop: -6 }}>
+            Matérias que passaram da data de revisão, ou que saíram do site sozinhas porque o
+            evento ou o prazo venceu.
+          </p>
+          <table className="dm-table">
+            <thead>
+              <tr>
+                <th>Título</th>
+                <th>Tipo</th>
+                <th>Revisão prevista</th>
+                <th>Validade</th>
+              </tr>
+            </thead>
+            <tbody>
+              {manutencao.map((article) => (
+                <tr key={article.id}>
+                  <td>
+                    <Link href={`/admin/materias/${article.id}`}>{article.title}</Link>
+                  </td>
+                  <td>
+                    {CONTENT_TYPE_LABEL[article.contentType as keyof typeof CONTENT_TYPE_LABEL] ??
+                      article.contentType}
+                  </td>
+                  <td>{formatShort(article.reviewDueAt)}</td>
+                  <td>
+                    {article.eventDate
+                      ? `evento em ${article.eventDate}`
+                      : article.expiresAt
+                        ? `valia até ${article.expiresAt}`
+                        : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       <div className="dm-panel">
         {/* Filtros via GET: recarregam a página sem precisar de JavaScript. */}

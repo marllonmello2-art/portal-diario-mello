@@ -23,7 +23,7 @@ test("a capa exibe a marca do portal", async () => {
   const html = await response.text();
   assert.match(html, /Diário/);
   assert.match(html, /Mello/);
-  assert.match(html, /Jornalismo independente/);
+  assert.match(html, /Informação que dura/);
 });
 
 test("robots.txt aponta o sitemap e bloqueia o painel", async () => {

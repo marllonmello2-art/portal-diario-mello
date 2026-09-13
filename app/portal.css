@@ -385,3 +385,7 @@ body { margin: 0; }
 .dm-excluir-conta { border-top: 1px solid var(--dm-line); margin-top: 36px; padding-top: 22px; max-width: 560px; }
 .dm-excluir-conta h3 { font-family: var(--dm-serif); font-size: 19px; margin: 0 0 6px; color: var(--dm-ink); }
 .dm-excluir-conta p { font-size: 14.5px; color: #5c636d; margin: 0 0 12px; }
+
+/* --------------- validade e revisão do conteúdo --------------------- */
+.dm-validade { font-family: var(--dm-sans); font-size: 13.5px; color: var(--dm-muted); border-top: 1px solid var(--dm-line); padding-top: 14px; margin: 22px 0 0; }
+.dm-validade:empty { display: none; }

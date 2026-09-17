@@ -13,6 +13,7 @@ import {
 import { autoPublishEnabled } from "../../lib/portal/settings";
 import { CONTENT_TYPE_LABEL } from "../../lib/portal/lifecycle";
 import { requireAdmin } from "../../lib/portal/session-server";
+import { getEnvSecret } from "../../lib/portal/auth";
 import {
   AUTHORING_STATUSES,
   PUBLIC_STATUSES,
@@ -77,6 +78,11 @@ export default async function AdminHome({
     daRedacao ? agentPendingCheck(db) : Promise.resolve([]),
   ]);
 
+  // Só o "existe ou não": a chave em si nunca chega ao navegador.
+  const temChaveDoAgente = daRedacao
+    ? Boolean((await getEnvSecret("AGENT_API_KEY")) ?? (await getEnvSecret("PORTAL_AGENT_API_KEY")))
+    : false;
+
   const noAr = articles.filter((article) => PUBLIC_STATUSES.includes(article.status as never)).length;
   const emProducao = articles.filter((article) =>
     AUTHORING_STATUSES.includes(article.status as never),
@@ -123,6 +129,7 @@ export default async function AdminHome({
       {daRedacao ? (
         <AgentPanel
           ligada={agenteLigado}
+          temChave={temChaveDoAgente}
           podeDesligar={hasRole(session, "EDITOR_CHEFE", "ADMINISTRADOR")}
           pendentes={pendentes.map((materia) => ({
             id: materia.id,

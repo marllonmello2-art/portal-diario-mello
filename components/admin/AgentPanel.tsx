@@ -15,10 +15,13 @@ import { requestJson } from "../../lib/portal/http";
  */
 export function AgentPanel({
   ligada,
+  temChave,
   podeDesligar,
   pendentes,
 }: {
   ligada: boolean;
+  /** Existe AGENT_API_KEY no Worker? Sem ela, o agente sequer consegue entrar. */
+  temChave: boolean;
   podeDesligar: boolean;
   pendentes: { id: string; title: string; slug: string; publishedAt: string | null }[];
 }) {
@@ -63,9 +66,17 @@ export function AgentPanel({
       <h2>Agente editorial</h2>
 
       <div className="dm-agente-estado">
-        <span className={`dm-badge ${ativa ? "dm-badge-publicada" : "dm-badge-arquivada"}`}>
-          {ativa ? "Publicando automaticamente" : "Desligado"}
+        <span
+          className={`dm-badge ${!temChave ? "dm-badge-arquivada" : ativa ? "dm-badge-publicada" : "dm-badge-arquivada"}`}
+        >
+          {!temChave ? "Sem chave de acesso" : ativa ? "Publicando automaticamente" : "Desligado"}
         </span>
+        {!temChave ? (
+          <p className="dm-note">
+            O secret <code>AGENT_API_KEY</code> ainda não existe no Worker. Enquanto isso, a rota do
+            agente responde 503 e nada entra por ela.
+          </p>
+        ) : null}
         <p className="dm-note">
           {ativa
             ? "O agente publica direto o que for explicação ou serviço e passar em todas as travas. Notícia, opinião, análise, correção e patrocinado continuam entrando na fila de revisão."

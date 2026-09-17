@@ -5,6 +5,7 @@
 import { eq } from "drizzle-orm";
 import { articles, authors, categories } from "../../db/schema";
 import { recordAudit, type AuditActor } from "./audit";
+import { evaluateAutoPublish, type AutoPublishBlockCode } from "./auto-publish";
 import {
   isClassification,
   requiresConfirmedSource,
@@ -430,6 +431,141 @@ export async function transitionArticle(
   });
 
   return { ok: true, article: await getArticleById(db, id) };
+}
+
+/* ----------------------- publicação automática ------------------------- */
+
+export type AutoPublishOutcome =
+  | { ok: true; article: Awaited<ReturnType<typeof getArticleById>> }
+  | { ok: false; code: AutoPublishBlockCode | "ESTADO_INVALIDO"; motivos: string[] };
+
+/**
+ * Leva ao ar uma matéria recém-chegada do agente editorial.
+ *
+ * Este é o segundo — e último — caminho de uma matéria até PUBLICADA. O
+ * primeiro é `transitionArticle`, a mão de um editor-chefe. Aqui não há
+ * pessoa, então a decisão é tomada de novo a partir do que ficou gravado no
+ * banco, e não do que a requisição disse: se alguém contornar a validação da
+ * rota, esbarra nesta.
+ *
+ * A matéria vai ao ar com `last_reviewed_at` vazio de propósito. É o que
+ * marca, no painel e na página, o texto que ainda não passou por olho humano
+ * — publicar automaticamente não é a mesma coisa que conferir.
+ */
+export async function autoPublishArticle(
+  db: PortalDb,
+  id: string,
+  options: { ip?: string | null; label?: string | null } = {},
+): Promise<AutoPublishOutcome> {
+  const [current] = await db.select().from(articles).where(eq(articles.id, id)).limit(1);
+  if (!current) return { ok: false, code: "ESTADO_INVALIDO", motivos: ["Matéria não encontrada."] };
+
+  const from = normalizeStatus(current.status);
+  if (from !== "EM_REVISAO" || current.origin !== "integracao") {
+    return {
+      ok: false,
+      code: "ESTADO_INVALIDO",
+      motivos: ["A publicação automática só vale para matéria recém-recebida do agente."],
+    };
+  }
+
+  const tipo = normalizeContentType(current.contentType);
+  const decisao = evaluateAutoPublish({
+    classification: normalizeClassification(current.classification),
+    contentType: tipo,
+    title: current.title,
+    subtitle: current.subtitle,
+    content: current.content,
+    hasCategory: Boolean(current.categoryId),
+    hasAuthor: Boolean(current.authorId),
+    checklist: checklistFromRow(current),
+    reviewDueAt: current.reviewDueAt,
+    eventDate: current.eventDate,
+    expiresAt: current.expiresAt,
+    coverImageUrl: current.coverImageUrl,
+    coverCredit: current.coverCredit,
+    coverSource: current.coverSource,
+    coverAiGenerated: Boolean(current.coverAiGenerated),
+  });
+  if (!decisao.ok) return { ok: false, code: decisao.code, motivos: decisao.motivos };
+
+  const agora = new Date().toISOString();
+  await db
+    .update(articles)
+    .set({
+      status: "PUBLICADA",
+      publishedAt: agora,
+      approvedAt: agora,
+      // Ninguém aprovou nem publicou: foi o agente, sob as regras do portal.
+      approvedByUserId: null,
+      publishedByUserId: null,
+      reviewDueAt:
+        nextReviewDate(tipo, new Date(agora), {
+          eventDate: current.eventDate,
+          expiresAt: current.expiresAt,
+        }) ?? current.reviewDueAt,
+      updatedAt: agora,
+    })
+    .where(eq(articles.id, id));
+
+  await recordAudit(
+    db,
+    { kind: "integracao", label: options.label ?? "agente editorial" },
+    {
+      action: "article.auto_publish",
+      entity: "article",
+      entityId: id,
+      fromStatus: from,
+      toStatus: "PUBLICADA",
+      note: "publicada automaticamente pelo agente, dentro das travas de baixo risco",
+      metadata: { titulo: current.title, classificacao: current.classification, tipo },
+      ip: options.ip ?? null,
+    },
+  );
+
+  return { ok: true, article: await getArticleById(db, id) };
+}
+
+/**
+ * Registra que uma pessoa conferiu uma matéria publicada pelo agente.
+ *
+ * Não muda o texto nem o estado: carimba a data da conferência e agenda a
+ * próxima revisão. É o que tira a matéria da fila "ainda não conferida".
+ */
+export async function markHumanChecked(
+  db: PortalDb,
+  actor: Actor & { auditActor: AuditActor },
+  id: string,
+  options: { ip?: string | null } = {},
+): Promise<{ ok: boolean; reason?: string }> {
+  const [current] = await db.select().from(articles).where(eq(articles.id, id)).limit(1);
+  if (!current) return { ok: false, reason: "Matéria não encontrada." };
+
+  const agora = new Date().toISOString();
+  await db
+    .update(articles)
+    .set({
+      lastReviewedAt: agora,
+      reviewDueAt:
+        nextReviewDate(normalizeContentType(current.contentType), new Date(agora), {
+          eventDate: current.eventDate,
+          expiresAt: current.expiresAt,
+        }) ?? current.reviewDueAt,
+      updatedAt: agora,
+    })
+    .where(eq(articles.id, id));
+
+  await recordAudit(db, actor.auditActor, {
+    action: "article.human_check",
+    entity: "article",
+    entityId: id,
+    toStatus: current.status,
+    note: "matéria publicada pelo agente conferida por uma pessoa",
+    metadata: { titulo: current.title },
+    ip: options.ip ?? null,
+  });
+
+  return { ok: true };
 }
 
 /** Só uma matéria pode ocupar o destaque principal da capa. */

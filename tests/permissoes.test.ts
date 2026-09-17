@@ -67,9 +67,18 @@ test("o autor edita só o que é dele e enquanto está em produção", () => {
   assert.equal(canEditArticle(editor, entregue).ok, true);
 });
 
-test("matéria de integração entra em revisão, nunca no ar", () => {
+test("matéria de integração é gravada em revisão, nunca direto como publicada", () => {
+  // O agente pode publicar depois, mas por um caminho próprio e com travas
+  // próprias: a gravação inicial nunca nasce em estado público.
   assert.equal(INTEGRATION_ENTRY_STATUS, "EM_REVISAO");
   assert.ok(!PUBLIC_STATUSES.includes(INTEGRATION_ENTRY_STATUS));
+});
+
+test("nenhum perfil humano além do editor-chefe leva matéria ao ar", () => {
+  for (const transicao of TRANSITIONS) {
+    if (transicao.to !== "PUBLICADA") continue;
+    assert.deepEqual(transicao.roles, ["EDITOR_CHEFE"], `${transicao.from} → PUBLICADA`);
+  }
 });
 
 test("apagar de vez é do administrador; criar é da redação", () => {

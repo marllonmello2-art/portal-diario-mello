@@ -8,6 +8,7 @@
 
 export const CLASSIFICATIONS = [
   "NOTICIA",
+  "EXPLICATIVO",
   "OPINIAO",
   "PATROCINADO",
   "COMUNICADO",
@@ -23,6 +24,7 @@ export function isClassification(value: string): value is Classification {
 
 export const CLASSIFICATION_LABEL: Record<Classification, string> = {
   NOTICIA: "Notícia",
+  EXPLICATIVO: "Explicação e serviço",
   OPINIAO: "Opinião",
   PATROCINADO: "Conteúdo patrocinado",
   COMUNICADO: "Comunicado / assessoria",
@@ -33,6 +35,8 @@ export const CLASSIFICATION_LABEL: Record<Classification, string> = {
 /** Explicação curta, usada no editor. */
 export const CLASSIFICATION_HINT: Record<Classification, string> = {
   NOTICIA: "Fato apurado pela redação. Exige ao menos uma fonte confirmada para ser aprovada.",
+  EXPLICATIVO:
+    "Explicação, história, guia ou serviço a partir de material público e verificável. Não narra fato novo nem avalia pessoa.",
   OPINIAO: "Texto de autor, assinado. A responsabilidade é de quem assina.",
   PATROCINADO: "Material pago. Aparece com selo próprio e nunca como notícia.",
   COMUNICADO: "Texto de assessoria, reproduzido com identificação e sem apuração independente.",

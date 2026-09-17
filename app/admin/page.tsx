@@ -1,9 +1,16 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { AdminShell } from "../../components/admin/AdminShell";
+import { AgentPanel } from "../../components/admin/AgentPanel";
 import { getPortalDb } from "../../lib/portal/db";
 import { formatShort } from "../../lib/portal/format";
-import { adminListArticles, listCategories, maintenanceQueue } from "../../lib/portal/queries";
+import {
+  adminListArticles,
+  agentPendingCheck,
+  listCategories,
+  maintenanceQueue,
+} from "../../lib/portal/queries";
+import { autoPublishEnabled } from "../../lib/portal/settings";
 import { CONTENT_TYPE_LABEL } from "../../lib/portal/lifecycle";
 import { requireAdmin } from "../../lib/portal/session-server";
 import {
@@ -55,7 +62,9 @@ export default async function AdminHome({
     );
   }
 
-  const [articles, categories, manutencao] = await Promise.all([
+  const daRedacao = hasRole(session, "EDITOR", "EDITOR_CHEFE", "ADMINISTRADOR");
+
+  const [articles, categories, manutencao, agenteLigado, pendentes] = await Promise.all([
     adminListArticles(db, {
       status: filters.status || undefined,
       categoryId: filters.editoria || undefined,
@@ -63,9 +72,9 @@ export default async function AdminHome({
       onlyAuthorUserId: soVeOProprio ? session.sub : undefined,
     }),
     listCategories(db),
-    hasRole(session, "EDITOR", "EDITOR_CHEFE", "ADMINISTRADOR")
-      ? maintenanceQueue(db)
-      : Promise.resolve([]),
+    daRedacao ? maintenanceQueue(db) : Promise.resolve([]),
+    daRedacao ? autoPublishEnabled(db) : Promise.resolve(false),
+    daRedacao ? agentPendingCheck(db) : Promise.resolve([]),
   ]);
 
   const noAr = articles.filter((article) => PUBLIC_STATUSES.includes(article.status as never)).length;
@@ -110,6 +119,19 @@ export default async function AdminHome({
           <span>No ar</span>
         </div>
       </div>
+
+      {daRedacao ? (
+        <AgentPanel
+          ligada={agenteLigado}
+          podeDesligar={hasRole(session, "EDITOR_CHEFE", "ADMINISTRADOR")}
+          pendentes={pendentes.map((materia) => ({
+            id: materia.id,
+            title: materia.title,
+            slug: materia.slug,
+            publishedAt: materia.publishedAt,
+          }))}
+        />
+      ) : null}
 
       {manutencao.length ? (
         <div className="dm-panel">

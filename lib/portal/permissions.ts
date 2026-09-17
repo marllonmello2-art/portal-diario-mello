@@ -210,8 +210,14 @@ export function canSeeAudit(actor: Actor): boolean {
 /**
  * Estado em que uma matéria vinda de integração (agente de IA) entra.
  *
- * Nunca é PUBLICADA, AGENDADA ou APROVADA: por decisão editorial, texto de
- * máquina chega para revisão humana e só sai dali pela mão de uma pessoa.
+ * Toda matéria do agente é gravada aqui primeiro, em revisão. O que acontece
+ * depois depende do que ela é: material explicativo e de serviço que passe em
+ * todas as travas de `auto-publish.ts` vai ao ar na sequência, pelo próprio
+ * agente; qualquer outra coisa fica nesta fila esperando uma pessoa.
+ *
+ * A tabela de transições acima não conhece esse atalho, e não deve conhecer:
+ * ela descreve o que cada *perfil humano* pode fazer. A publicação automática
+ * é uma exceção nomeada, com regras próprias e registro em auditoria.
  */
 export const INTEGRATION_ENTRY_STATUS: Status = "EM_REVISAO";
 

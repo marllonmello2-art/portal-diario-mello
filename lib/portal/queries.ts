@@ -373,6 +373,27 @@ export async function maintenanceQueue(db: PortalDb): Promise<ArticleCard[]> {
     .limit(100);
 }
 
+/**
+ * Matérias que o agente publicou e que ninguém da redação conferiu ainda.
+ *
+ * A marca é `last_reviewed_at` vazio: publicar automaticamente não carimba
+ * revisão. Esta é a fila que sustenta a promessa feita ao leitor na página de
+ * uso de IA — todo texto de máquina passa por olho humano, ainda que depois
+ * de publicado.
+ */
+export async function agentPendingCheck(db: PortalDb): Promise<ArticleCard[]> {
+  return baseSelect(db)
+    .where(
+      and(
+        inArray(articles.status, PUBLIC_STATUSES),
+        eq(articles.origin, "integracao"),
+        isNull(articles.lastReviewedAt),
+      ),
+    )
+    .orderBy(desc(articles.publishedAt))
+    .limit(50);
+}
+
 /** Lista do painel: todos os status, com filtros opcionais. */
 export async function adminListArticles(
   db: PortalDb,

@@ -82,11 +82,25 @@ export default function EditorialPolicyPage() {
         publicada por um editor-chefe, com registro de quem aprovou e quando. Matéria classificada
         como notícia só é aprovada com pelo menos uma fonte confirmada.
       </p>
+      <p>
+        Há uma exceção declarada, e ela tem limite estreito: o conteúdo{" "}
+        <strong>explicativo e de serviço</strong> produzido pelo nosso agente editorial é publicado
+        automaticamente, desde que passe em todas as travas do sistema — as quatro confirmações de
+        baixo risco, tipo de conteúdo com data de revisão, editoria, assinatura e direitos da
+        imagem. Esse material aparece identificado ao leitor até ser conferido por uma pessoa da
+        redação, e não ocupa o destaque da capa por conta própria. Notícia, análise, opinião, comunicado, conteúdo
+        patrocinado e correção continuam dependendo de aprovação humana, sem exceção. Detalhes em{" "}
+        <Link href="/uso-de-ia">Uso de inteligência artificial</Link>.
+      </p>
 
       <h2>O que cada publicação é</h2>
       <p>Toda publicação declara sua natureza, e o site mostra isso ao leitor:</p>
       <ul>
         <li><strong>Notícia</strong> — fato apurado pela redação.</li>
+        <li>
+          <strong>Explicação e serviço</strong> — guia, história ou informação de utilidade a partir
+          de material público e verificável, sem narrar fato novo nem avaliar pessoa.
+        </li>
         <li><strong>Análise</strong> — interpretação da redação sobre fatos já apurados.</li>
         <li><strong>Opinião</strong> — texto assinado, de responsabilidade de quem assina.</li>
         <li><strong>Comunicado</strong> — material de assessoria, identificado e sem apuração independente.</li>
@@ -111,7 +125,9 @@ export default function EditorialPolicyPage() {
 
       <h2>Inteligência artificial</h2>
       <p>
-        Usamos IA como ferramenta de apoio, nunca como jornalista. As regras estão em{" "}
+        Usamos IA para escrever conteúdo explicativo e de serviço, e dizemos isso na cara do leitor.
+        Ela não apura notícia, não assina opinião e não decide o que é correção. As regras completas,
+        incluindo o que o agente publica sozinho e o que nunca publica, estão em{" "}
         <Link href="/uso-de-ia">Uso de inteligência artificial</Link>.
       </p>
 

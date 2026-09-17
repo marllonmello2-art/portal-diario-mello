@@ -173,6 +173,19 @@ export default async function ArticlePage({ params }: PageProps) {
             authorName={article.authorName}
           />
 
+          {/*
+            Transparência sobre o que o leitor tem na frente: texto escrito e
+            publicado pelo agente editorial, ainda sem conferência humana. O
+            aviso some quando alguém da redação registra a conferência.
+          */}
+          {article.origin === "integracao" && !article.lastReviewedAt ? (
+            <p className="dm-aviso-agente">
+              Texto produzido e publicado automaticamente pelo agente editorial do {BRAND.name},
+              dentro das regras de conteúdo explicativo. Ainda não passou por conferência humana.{" "}
+              <Link href="/uso-de-ia">Como usamos inteligência artificial</Link>.
+            </p>
+          ) : null}
+
           {article.coverImageUrl ? (
             <figure className="dm-figure">
               <Img src={article.coverImageUrl} alt={article.title} loading="eager" />

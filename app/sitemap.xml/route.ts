@@ -1,6 +1,6 @@
-import { desc, eq, lte, or, and } from "drizzle-orm";
-import { articles, categories } from "../../db/schema";
+import { categories } from "../../db/schema";
 import { getPortalDb } from "../../lib/portal/db";
+import { sitemapArticles } from "../../lib/portal/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,14 @@ function xmlEscape(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-/** Sitemap gerado dinamicamente a partir das matérias e editorias publicadas. */
+/**
+ * Sitemap gerado a partir das matérias e editorias publicadas.
+ *
+ * A lista de matérias vem de `sitemapArticles`, que usa a mesma condição de
+ * visibilidade das páginas do site. Esta rota já teve a regra escrita à mão,
+ * com o vocabulário antigo de status, e ficou meses sem listar matéria
+ * nenhuma — duplicar essa lógica aqui é o erro a não repetir.
+ */
 export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
   const db = await getPortalDb();
@@ -26,24 +33,9 @@ export async function GET(request: Request) {
   ];
 
   if (db) {
-    const now = new Date().toISOString();
     const [categoryRows, articleRows] = await Promise.all([
       db.select().from(categories).orderBy(categories.position),
-      db
-        .select({
-          slug: articles.slug,
-          updatedAt: articles.updatedAt,
-          publishedAt: articles.publishedAt,
-        })
-        .from(articles)
-        .where(
-          or(
-            eq(articles.status, "published"),
-            and(eq(articles.status, "scheduled"), lte(articles.publishedAt, now)),
-          ),
-        )
-        .orderBy(desc(articles.publishedAt))
-        .limit(2000),
+      sitemapArticles(db),
     ]);
 
     for (const category of categoryRows) {

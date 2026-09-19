@@ -374,6 +374,29 @@ export async function maintenanceQueue(db: PortalDb): Promise<ArticleCard[]> {
 }
 
 /**
+ * Endereços das matérias para o sitemap.
+ *
+ * Usa exatamente a mesma regra de visibilidade do site — inclusive a validade
+ * de agenda e prazo. Sitemap que aponta para página fora do ar é erro
+ * registrado no Search Console, e sitemap que esquece matéria no ar é tráfego
+ * que não chega.
+ */
+export async function sitemapArticles(
+  db: PortalDb,
+): Promise<{ slug: string; updatedAt: string; publishedAt: string | null }[]> {
+  return db
+    .select({
+      slug: articles.slug,
+      updatedAt: articles.updatedAt,
+      publishedAt: articles.publishedAt,
+    })
+    .from(articles)
+    .where(visible())
+    .orderBy(desc(articles.publishedAt))
+    .limit(2000);
+}
+
+/**
  * Matérias que o agente publicou e que ninguém da redação conferiu ainda.
  *
  * A marca é `last_reviewed_at` vazio: publicar automaticamente não carimba

@@ -2,35 +2,9 @@ import { mediaAssets } from "../../../../db/schema";
 import { guardAdmin, isResponse } from "../../../../lib/portal/api-guard";
 import { AI_IMAGE_CREDIT } from "../../../../lib/portal/articles";
 import { getBucket } from "../../../../lib/portal/db";
+import { MAX_IMAGE_BYTES, sniffImage } from "../../../../lib/portal/image-bytes";
 
 export const dynamic = "force-dynamic";
-
-const MAX_BYTES = 6 * 1024 * 1024; // 6 MB
-
-/**
- * Detecta o tipo real pelo cabeçalho do arquivo (magic bytes).
- * Confiar no `content-type` enviado pelo navegador permitiria subir um
- * arquivo arbitrário só renomeando a extensão.
- */
-function sniff(bytes: Uint8Array): { mime: string; ext: string } | null {
-  const startsWith = (...signature: number[]) =>
-    signature.every((byte, index) => bytes[index] === byte);
-
-  if (startsWith(0x89, 0x50, 0x4e, 0x47)) return { mime: "image/png", ext: "png" };
-  if (startsWith(0xff, 0xd8, 0xff)) return { mime: "image/jpeg", ext: "jpg" };
-  if (startsWith(0x47, 0x49, 0x46, 0x38)) return { mime: "image/gif", ext: "gif" };
-  // WEBP = "RIFF"????"WEBP"
-  if (
-    startsWith(0x52, 0x49, 0x46, 0x46) &&
-    bytes[8] === 0x57 &&
-    bytes[9] === 0x45 &&
-    bytes[10] === 0x42 &&
-    bytes[11] === 0x50
-  ) {
-    return { mime: "image/webp", ext: "webp" };
-  }
-  return null;
-}
 
 /** Upload de imagem (capa de matéria ou foto de autor) para o bucket R2. */
 export async function POST(request: Request) {
@@ -72,12 +46,12 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) {
     return Response.json({ error: "Nenhum arquivo recebido." }, { status: 400 });
   }
-  if (file.size > MAX_BYTES) {
+  if (file.size > MAX_IMAGE_BYTES) {
     return Response.json({ error: "A imagem deve ter no máximo 6 MB." }, { status: 413 });
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const type = sniff(bytes);
+  const type = sniffImage(bytes);
   if (!type) {
     return Response.json({ error: "Envie uma imagem JPG, PNG, WEBP ou GIF." }, { status: 415 });
   }

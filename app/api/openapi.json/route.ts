@@ -40,8 +40,8 @@ export async function GET(request: Request) {
           summary: "Envia uma matéria ao portal; publica direto quando ela cumpre todas as regras.",
           description:
             `Grava a matéria e decide na hora: ${automatizaveis} com ${MIN_AUTO_PUBLISH_CHARS}+ caracteres, linha fina, editoria, assinatura, ` +
-            `tipo de conteúdo e baixo_risco completos vai ao ar. Senão fica em revisão humana e "motivos" diz o que faltou. ` +
-            `Teto: ${AUTO_PUBLISH_LIMIT_HOUR}/hora e ${AUTO_PUBLISH_LIMIT_DAY}/dia.`,
+            `foto de capa de licença livre, tipo de conteúdo e baixo_risco completos vai ao ar. Senão fica em revisão e "motivos" diz o que faltou. ` +
+            `Teto: ${AUTO_PUBLISH_LIMIT_HOUR}/hora, ${AUTO_PUBLISH_LIMIT_DAY}/dia.`,
           security: [{ agentApiKey: [] }],
           requestBody: {
             required: true,
@@ -150,7 +150,17 @@ export async function GET(request: Request) {
         },
         PublishRequest: {
           type: "object",
-          required: ["title", "subtitle", "content", "category_slug", "author_name", "baixo_risco"],
+          required: [
+            "title",
+            "subtitle",
+            "content",
+            "category_slug",
+            "author_name",
+            "baixo_risco",
+            "cover_image_url",
+            "cover_credit",
+            "cover_source",
+          ],
           properties: {
             title: {
               type: "string",
@@ -171,15 +181,26 @@ export async function GET(request: Request) {
               description: "Nome do autor. Se não existir, o autor é criado automaticamente.",
             },
             tags: { type: "array", items: { type: "string" }, description: "Lista de tags." },
-            cover_image_url: { type: "string", description: "URL da imagem de capa." },
-            cover_credit: { type: "string", description: "Crédito de quem fez a foto de capa." },
-            cover_source: { type: "string", description: "Origem da imagem (veículo, acervo, banco)." },
+            cover_image_url: {
+              type: "string",
+              format: "uri",
+              description:
+                "Endereço https de foto de licença livre: Wikimedia Commons, Unsplash, Pexels, Agência Brasil ou site .gov.br. O portal baixa e guarda a imagem; endereço inventado ou fora do ar impede a publicação.",
+            },
+            cover_credit: {
+              type: "string",
+              description: "Crédito de quem fez a foto, como o site de origem informa.",
+            },
+            cover_source: {
+              type: "string",
+              description: "Origem da imagem: Wikimedia Commons, Agência Brasil, Unsplash, nome do órgão.",
+            },
             cover_license: { type: "string", description: "Licença da imagem, quando houver." },
             cover_ai_generated: {
               type: "boolean",
               default: false,
               description:
-                "Marque true quando a capa for ilustração gerada por IA. O crédito vira “Imagem ilustrativa gerada por IA”.",
+                "Só para ilustração do próprio portal enviada pelo painel. O agente não usa este campo.",
             },
             classification: {
               type: "string",

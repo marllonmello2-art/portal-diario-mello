@@ -32,6 +32,9 @@ const completo: AutoPublishInput = {
     imagemRegular: true,
   },
   reviewDueAt: "2027-03-17T00:00:00.000Z",
+  coverImageUrl: "https://upload.wikimedia.org/wikipedia/commons/bonde.jpg",
+  coverCredit: "Autor desconhecido",
+  coverSource: "Wikimedia Commons",
 };
 
 test("matéria explicativa completa vai ao ar sozinha", () => {
@@ -107,27 +110,28 @@ test("conteúdo permanente sem data de revisão não é publicado", () => {
   if (!decisao.ok) assert.match(decisao.motivos.join(" "), /próxima revisão/i);
 });
 
+test("matéria sem foto de capa não é publicada pelo agente", () => {
+  const decisao = evaluateAutoPublish({ ...completo, coverImageUrl: null });
+  assert.equal(decisao.ok, false);
+  if (decisao.ok) return;
+  assert.equal(decisao.code, "SEM_CAPA");
+  assert.match(decisao.motivos.join(" "), /capa/i);
+});
+
 test("capa sem crédito e origem barra a publicação automática", () => {
-  const decisao = evaluateAutoPublish({
-    ...completo,
-    coverImageUrl: "https://exemplo.com/foto.jpg",
-  });
+  const decisao = evaluateAutoPublish({ ...completo, coverCredit: null, coverSource: null });
   assert.equal(decisao.ok, false);
   if (decisao.ok) return;
   assert.equal(decisao.code, "DIREITOS_DE_IMAGEM");
 
-  const creditada = evaluateAutoPublish({
-    ...completo,
-    coverImageUrl: "https://exemplo.com/foto.jpg",
-    coverCredit: "Maria Silva",
-    coverSource: "Acervo público municipal",
-  });
-  assert.equal(creditada.ok, true);
+  const semOrigem = evaluateAutoPublish({ ...completo, coverSource: null });
+  assert.equal(semOrigem.ok, false);
 
   const ilustracao = evaluateAutoPublish({
     ...completo,
-    coverImageUrl: "https://exemplo.com/ilustracao.png",
+    coverCredit: null,
+    coverSource: null,
     coverAiGenerated: true,
   });
-  assert.equal(ilustracao.ok, true);
+  assert.equal(ilustracao.ok, true, "ilustração do portal dispensa crédito de terceiro");
 });

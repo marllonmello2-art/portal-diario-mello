@@ -43,6 +43,7 @@ export type AutoPublishBlockCode =
   | "CLASSIFICACAO_NAO_AUTOMATIZAVEL"
   | "TEXTO_INSUFICIENTE"
   | "SELO_INCOMPLETO"
+  | "SEM_CAPA"
   | "DIREITOS_DE_IMAGEM";
 
 export type AutoPublishDecision =
@@ -96,6 +97,18 @@ export function evaluateAutoPublish(input: AutoPublishInput): AutoPublishDecisio
   if (!input.hasCategory) faltas.push("Editoria existente em category_slug");
   if (!input.hasAuthor) faltas.push("Assinatura em author_name ou author_id");
   if (faltas.length) return { ok: false, code: "TEXTO_INSUFICIENTE", motivos: faltas };
+
+  // Matéria sem capa não vai ao ar sozinha: a foto é parte do produto, e a
+  // página sem imagem denuncia texto feito em série.
+  if (!input.coverImageUrl?.trim()) {
+    return {
+      ok: false,
+      code: "SEM_CAPA",
+      motivos: [
+        "Imagem de capa (cover_image_url) de fonte de licença livre, com cover_credit e cover_source",
+      ],
+    };
+  }
 
   const selo = checkLowRisk({
     checklist: input.checklist,

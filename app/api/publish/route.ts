@@ -7,8 +7,9 @@ import {
   blockMessage,
   evaluateAutoPublish,
 } from "../../../lib/portal/auto-publish";
-import { getPortalDb } from "../../../lib/portal/db";
+import { getBucket, getPortalDb } from "../../../lib/portal/db";
 import { nextReviewDate } from "../../../lib/portal/lifecycle";
+import { ingestRemoteCover } from "../../../lib/portal/remote-cover";
 import { excerpt } from "../../../lib/portal/markdown";
 import { INTEGRATION_ENTRY_STATUS, STATUS_LABEL } from "../../../lib/portal/permissions";
 import { checkRateLimit, tooManyRequests } from "../../../lib/portal/rate-limit";
@@ -135,6 +136,28 @@ export async function POST(request: Request) {
 
   const ip = requestIp(request);
   const flags = body.baixo_risco ?? {};
+
+  // A capa indicada pelo agente é baixada e guardada no nosso bucket antes de
+  // a matéria existir. Endereço inventado, imagem fora das fontes permitidas
+  // ou arquivo que não é imagem param aqui — e a matéria segue sem capa, o que
+  // por si só já a manda para a fila humana.
+  let coverUrl: string | null = null;
+  let coverProblema: string | null = null;
+  const coverPedida = body.cover_image_url?.trim();
+  if (coverPedida) {
+    const bucket = await getBucket();
+    if (!bucket) {
+      coverProblema = "Bucket de imagens não conectado; a matéria ficou sem capa.";
+    } else {
+      const guardada = await ingestRemoteCover(bucket, db, coverPedida, {
+        credit: body.cover_credit,
+        source: body.cover_source,
+        license: body.cover_license,
+      });
+      if (guardada.ok) coverUrl = guardada.url;
+      else coverProblema = guardada.reason;
+    }
+  }
   const contentType = normalizeContentType(body.content_type);
   const agora = new Date();
   // Data da próxima revisão é conta do sistema, não julgamento editorial.
@@ -151,7 +174,7 @@ export async function POST(request: Request) {
     categoryId: body.category_id ?? null,
     authorId: body.author_id ?? null,
     authorName: body.author_name ?? null,
-    coverImageUrl: body.cover_image_url ?? null,
+    coverImageUrl: coverUrl,
     coverCredit: body.cover_credit ?? null,
     coverSource: body.cover_source ?? null,
     coverLicense: body.cover_license ?? null,
@@ -261,7 +284,11 @@ export async function POST(request: Request) {
     coverAiGenerated: Boolean(article.coverAiGenerated),
   });
 
-  if (!decisao.ok) return naFila(blockMessage(decisao), decisao.motivos);
+  if (!decisao.ok) {
+    // Quando a capa foi recusada, o motivo real é esse, não "faltou capa".
+    const motivos = coverProblema ? [coverProblema, ...decisao.motivos] : decisao.motivos;
+    return naFila(blockMessage({ ...decisao, motivos }), motivos);
+  }
 
   // Ritmo: o agente publica pouco e espaçado. Volume alto é justamente o que
   // caracteriza abuso de conteúdo em escala — e o que afunda um site novo.

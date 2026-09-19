@@ -24,10 +24,12 @@ export async function GET(request: Request) {
     info: {
       title: `${BRAND.name} — API de publicação`,
       version: "2.0.0",
+      // O ChatGPT recusa o schema quando uma descrição passa de 300 caracteres,
+      // então aqui vale a regra do lide: o essencial primeiro, curto. O detalhe
+      // de cada campo fica na descrição do próprio campo.
       description:
-        `Envia matérias para o portal e lista editorias e autores válidos. A rota de escrita exige o cabeçalho x-agent-api-key. ` +
-        `Material classificado como ${automatizaveis} é publicado automaticamente quando passa em todas as travas editoriais; ` +
-        `qualquer outra classificação, ou qualquer trava que falhe, manda a matéria para a fila de revisão de um editor-chefe humano.`,
+        `Envia matérias ao portal e lista editorias e autores. Escrita exige o cabeçalho x-agent-api-key. ` +
+        `Só ${automatizaveis} é publicado automaticamente; o resto vai para revisão humana.`,
     },
     servers: [{ url: origin }],
     security: [{ agentApiKey: [] }],
@@ -37,11 +39,9 @@ export async function GET(request: Request) {
           operationId: "publishArticle",
           summary: "Envia uma matéria ao portal; publica direto quando ela cumpre todas as regras.",
           description:
-            `A matéria é sempre gravada primeiro em revisão, marcada como vinda de integração e com assistência de IA. ` +
-            `Em seguida o servidor decide: se a classificação for ${automatizaveis}, o corpo tiver pelo menos ${MIN_AUTO_PUBLISH_CHARS} caracteres, ` +
-            `houver linha fina, editoria, assinatura, tipo de conteúdo com data de revisão, direitos da imagem em ordem e as quatro confirmações de baixo_risco, ela vai ao ar na hora. ` +
-            `Caso contrário fica na fila humana e a resposta traz em "motivos" exatamente o que faltou. ` +
-            `Limites: ${AUTO_PUBLISH_LIMIT_HOUR} publicações automáticas por hora, ${AUTO_PUBLISH_LIMIT_DAY} por dia e 20 envios por hora.`,
+            `Grava a matéria e decide na hora: ${automatizaveis} com ${MIN_AUTO_PUBLISH_CHARS}+ caracteres, linha fina, editoria, assinatura, ` +
+            `tipo de conteúdo e baixo_risco completos vai ao ar. Senão fica em revisão humana e "motivos" diz o que faltou. ` +
+            `Teto: ${AUTO_PUBLISH_LIMIT_HOUR}/hora e ${AUTO_PUBLISH_LIMIT_DAY}/dia.`,
           security: [{ agentApiKey: [] }],
           requestBody: {
             required: true,

@@ -24,8 +24,7 @@ export default function AiUsePage() {
         O {BRAND.name} publica conteúdo <strong>explicativo e de serviço</strong>: história, cultura,
         guias de tecnologia, agenda, informação de utilidade a partir de material público. Para esse
         tipo de texto — e só para ele — um agente de IA escreve e publica automaticamente, dentro das
-        travas descritas abaixo. Todo texto assim nasce marcado no site, e você sabe o que está lendo
-        antes de ler.
+        travas descritas abaixo. Todo texto assim é identificado na assinatura e no pé da página: você sabe o que está lendo.
       </p>
 
       <h2>O que o agente publica sozinho</h2>
@@ -62,12 +61,20 @@ export default function AiUsePage() {
           <Link href="/politica-editorial">linha editorial</Link>, com ou sem IA.</li>
       </ul>
 
+      <h2>Como você identifica esses textos</h2>
+      <p>
+        Matéria escrita pelo agente traz a marca na assinatura — <em>com apoio de inteligência
+        artificial</em> — e uma nota no pé do texto, com o link para esta página. Não escondemos e
+        não alardeamos: é a mesma informação que damos sobre qualquer autoria.
+      </p>
+
       <h2>Conferência humana depois da publicação</h2>
       <p>
         Publicar automaticamente não é a mesma coisa que conferir. Toda matéria publicada pelo agente
-        entra numa fila do painel e recebe, na própria página, o aviso de que ainda não passou por
-        olho humano. O aviso só sai quando alguém da redação registra a conferência, com data e nome
-        guardados na auditoria interna.
+        entra numa fila de conferência da redação, e a passagem de uma pessoa por ela fica registrada
+        na auditoria interna, com data e nome. Encontrou erro em alguma? A{" "}
+        <Link href="/politica-de-correcoes">política de correções</Link> vale igual, e a correção
+        aparece no pé da matéria.
       </p>
 
       <h2>O botão de desligar</h2>

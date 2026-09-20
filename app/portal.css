@@ -395,14 +395,21 @@ body { margin: 0; }
 .dm-agente-estado .dm-note { color: #6b7280; margin: 0; max-width: 62ch; }
 .dm-agente-estado .dm-btn { margin-top: 4px; }
 
-/* Aviso de matéria publicada pelo agente e ainda não conferida. */
-.dm-aviso-agente {
-  border-left: 3px solid #2b2f77;
-  background: #f3f4fb;
-  color: #2b2f77;
-  padding: 12px 16px;
-  font-size: 14px;
-  margin: 0 0 18px;
-  border-radius: 0 6px 6px 0;
+/*
+ * Identificação de texto com apoio de IA.
+ *
+ * Duas marcas discretas em vez de um aviso em caixa: uma na assinatura, onde
+ * o leitor já procura quem escreveu, e uma nota no pé, com o link para a
+ * política. O estado interno de conferência não aparece na página.
+ */
+.dm-assinatura-ia { color: #6b7280; font-weight: 400; }
+
+.dm-nota-ia {
+  margin: 26px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--dm-line, #e6e1dc);
+  font-size: 13px;
+  line-height: 1.6;
+  color: #6b7280;
 }
-.dm-aviso-agente a { color: inherit; }
+.dm-nota-ia a { color: inherit; text-decoration: underline; }

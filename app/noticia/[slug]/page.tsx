@@ -160,6 +160,14 @@ export default async function ArticlePage({ params }: PageProps) {
             <div className="dm-meta" style={{ display: "block" }}>
               <div>
                 <strong>{article.authorName ?? BRAND.defaultAuthorName}</strong>
+                {/*
+                  Autoria é informação do leitor, e cabe onde ele já procura
+                  por ela: na assinatura. O estado interno de conferência não
+                  aparece aqui — esse é assunto do painel.
+                */}
+                {article.aiAssisted ? (
+                  <span className="dm-assinatura-ia"> · com apoio de inteligência artificial</span>
+                ) : null}
               </div>
               <div>
                 {formatDateTime(article.publishedAt ?? article.updatedAt)}
@@ -172,19 +180,6 @@ export default async function ArticlePage({ params }: PageProps) {
             classification={article.classification}
             authorName={article.authorName}
           />
-
-          {/*
-            Transparência sobre o que o leitor tem na frente: texto escrito e
-            publicado pelo agente editorial, ainda sem conferência humana. O
-            aviso some quando alguém da redação registra a conferência.
-          */}
-          {article.origin === "integracao" && !article.lastReviewedAt ? (
-            <p className="dm-aviso-agente">
-              Texto produzido e publicado automaticamente pelo agente editorial do {BRAND.name},
-              dentro das regras de conteúdo explicativo. Ainda não passou por conferência humana.{" "}
-              <Link href="/uso-de-ia">Como usamos inteligência artificial</Link>.
-            </p>
-          ) : null}
 
           {article.coverImageUrl ? (
             <figure className="dm-figure">
@@ -218,6 +213,14 @@ export default async function ArticlePage({ params }: PageProps) {
               }
             />
           )}
+
+          {article.origin === "integracao" ? (
+            <p className="dm-nota-ia">
+              Texto produzido pelo agente editorial do {BRAND.name} a partir de fontes públicas, sob
+              as regras de conteúdo explicativo do portal.{" "}
+              <Link href="/uso-de-ia">Como usamos inteligência artificial</Link>.
+            </p>
+          ) : null}
 
           <p className="dm-validade">
             {article.contentType === "AGENDA" && article.eventDate

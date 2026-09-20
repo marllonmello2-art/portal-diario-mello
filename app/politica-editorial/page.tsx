@@ -87,8 +87,8 @@ export default function EditorialPolicyPage() {
         <strong>explicativo e de serviço</strong> produzido pelo nosso agente editorial é publicado
         automaticamente, desde que passe em todas as travas do sistema — as quatro confirmações de
         baixo risco, tipo de conteúdo com data de revisão, editoria, assinatura e direitos da
-        imagem. Esse material aparece identificado ao leitor até ser conferido por uma pessoa da
-        redação, e não ocupa o destaque da capa por conta própria. Notícia, análise, opinião, comunicado, conteúdo
+        imagem. Esse material aparece identificado ao leitor, na assinatura e no pé do texto, passa
+        depois pela conferência da redação e não ocupa o destaque da capa por conta própria. Notícia, análise, opinião, comunicado, conteúdo
         patrocinado e correção continuam dependendo de aprovação humana, sem exceção. Detalhes em{" "}
         <Link href="/uso-de-ia">Uso de inteligência artificial</Link>.
       </p>

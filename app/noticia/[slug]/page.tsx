@@ -6,7 +6,8 @@ import { Img } from "../../../components/portal/Img";
 import { Newsletter } from "../../../components/portal/Newsletter";
 import { DatabaseMissing, PortalShell } from "../../../components/portal/PortalShell";
 import { ShareButtons } from "../../../components/portal/ShareButtons";
-import { BRAND } from "../../../lib/portal/brand";
+import { BRAND, absoluteUrl } from "../../../lib/portal/brand";
+import { siteUrl } from "../../../lib/portal/site-url";
 import { getPortalDb } from "../../../lib/portal/db";
 import { formatDateTime } from "../../../lib/portal/format";
 import { excerpt, leadParagraphs, readingMinutes, renderMarkdown } from "../../../lib/portal/markdown";
@@ -99,12 +100,20 @@ export default async function ArticlePage({ params }: PageProps) {
   const minutes = readingMinutes(article.content);
 
   // Dados estruturados ajudam o Google a entender que isto é uma notícia.
+  // Endereço e imagem vão absolutos: schema.org com caminho relativo é
+  // ignorado, e a imagem é o que decide se a matéria ganha miniatura.
+  const site = await siteUrl();
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
     headline: article.title,
     description: article.subtitle ?? excerpt(article.content, 180),
-    image: article.coverImageUrl ? [article.coverImageUrl] : undefined,
+    url: absoluteUrl(`/noticia/${article.slug}`, site),
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": absoluteUrl(`/noticia/${article.slug}`, site),
+    },
+    image: article.coverImageUrl ? [absoluteUrl(article.coverImageUrl, site)] : undefined,
     datePublished: article.publishedAt ?? article.updatedAt,
     dateModified: article.updatedAt,
     articleSection: article.categoryName ?? undefined,

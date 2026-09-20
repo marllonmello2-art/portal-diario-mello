@@ -413,3 +413,41 @@ body { margin: 0; }
   color: #6b7280;
 }
 .dm-nota-ia a { color: inherit; text-decoration: underline; }
+
+/*
+ * Fontes dentro do texto.
+ *
+ * Duas formas, uma para cada lugar: a nota solta no meio da matéria fica em
+ * corpo menor e cinza, recuada, para o olho passar por cima sem tropeçar; a
+ * lista do fim ganha fundo próprio e se comporta como apêndice, separada do
+ * corpo do texto.
+ */
+.dm-prose p.dm-fonte {
+  margin: -10px 0 22px;
+  padding-left: 14px;
+  border-left: 2px solid var(--dm-line);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #6b7280;
+}
+.dm-prose p.dm-fonte a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+
+.dm-fontes-texto {
+  margin: 34px 0 0;
+  padding: 18px 22px 6px;
+  background: var(--dm-soft, #f7f5f2);
+  border-radius: 8px;
+}
+.dm-fontes-texto h2,
+.dm-fontes-texto h3 {
+  margin: 0 0 10px;
+  font-family: var(--dm-sans, inherit);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+.dm-fontes-texto ul { margin: 0; padding-left: 18px; }
+.dm-fontes-texto li { font-size: 14.5px; line-height: 1.6; margin-bottom: 8px; color: #4b5563; }
+.dm-fontes-texto p { font-size: 14.5px; color: #4b5563; }
+.dm-fontes-texto a { color: var(--dm-ink, #17171a); }

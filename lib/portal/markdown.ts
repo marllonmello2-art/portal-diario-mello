@@ -27,35 +27,73 @@ function safeUrl(raw: string): string | null {
   return null;
 }
 
+/**
+ * Rótulo curto para um endereço solto no meio do texto.
+ *
+ * Uma URL de 120 caracteres no corpo da matéria é ruído: quebra a linha,
+ * atrapalha a leitura e não diz nada ao leitor. O domínio diz de onde vem a
+ * informação, que é o que interessa — o endereço completo continua no link.
+ */
+export function linkLabel(url: string): string {
+  const semProtocolo = url.replace(/^https?:\/\//i, "").replace(/^www\./i, "");
+  const host = semProtocolo.split("/")[0];
+  return host || url;
+}
+
+function anchor(href: string, label: string): string {
+  const externo = /^https?:\/\//i.test(href);
+  const attrs = externo ? ' target="_blank" rel="noopener noreferrer"' : "";
+  return `<a href="${href}"${attrs}>${label}</a>`;
+}
+
+/**
+ * Trechos já convertidos ficam guardados atrás de um marcador enquanto o
+ * resto da linha é processado. Sem isso, o endereço de um link markdown seria
+ * "linkado" de novo pela regra de URL solta, e o HTML sairia aninhado.
+ */
 function inline(text: string): string {
   let out = escapeHtml(text);
+  const prontos: string[] = [];
+  const guardar = (html: string) => {
+    prontos.push(html);
+    return `\u0000${prontos.length - 1}\u0000`;
+  };
 
   // `código`
-  out = out.replace(/`([^`]+)`/g, (_m, code) => `<code>${code}</code>`);
+  out = out.replace(/`([^`]+)`/g, (_m, code) => guardar(`<code>${code}</code>`));
 
   // ![alt](src)
   out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, alt, src) => {
     const href = safeUrl(src);
-    return href ? `<img src="${href}" alt="${alt}" loading="lazy" />` : match;
+    return href ? guardar(`<img src="${href}" alt="${alt}" loading="lazy" />`) : match;
   });
 
   // [texto](url)
   out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, src) => {
     const href = safeUrl(src);
-    if (!href) return match;
-    const external = /^https?:\/\//i.test(href);
-    const attrs = external ? ' target="_blank" rel="noopener noreferrer"' : "";
-    return `<a href="${href}"${attrs}>${label}</a>`;
+    return href ? guardar(anchor(href, label)) : match;
+  });
+
+  // Endereço solto: vira link com o domínio à mostra, não a URL inteira.
+  out = out.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, (_m, antes: string, url: string) => {
+    const limpo = url.replace(/[.,;:!?]+$/, "");
+    const sobra = url.slice(limpo.length);
+    const href = safeUrl(limpo);
+    if (!href) return `${antes}${url}`;
+    return `${antes}${guardar(anchor(href, linkLabel(limpo)))}${sobra}`;
   });
 
   // **negrito** e *itálico*
   out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
 
-  return out;
+  return out.replace(/\u0000(\d+)\u0000/g, (_m, indice: string) => prontos[Number(indice)] ?? "");
 }
 
 /** Converte Markdown (ou HTML já escapado) em HTML pronto para exibição. */
+/** Títulos que abrem a lista de fontes no pé da matéria. */
+const SECAO_DE_FONTES = /^(fontes|fontes consultadas|refer[êe]ncias|saiba mais|para saber mais)$/i;
+
 export function renderMarkdown(source: string): string {
   const lines = (source ?? "").replace(/\r\n/g, "\n").split("\n");
   const html: string[] = [];
@@ -63,10 +101,17 @@ export function renderMarkdown(source: string): string {
   let list: { type: "ul" | "ol"; items: string[] } | null = null;
   let quote: string[] = [];
   let code: { lang: string; lines: string[] } | null = null;
+  let emFontes = false;
+
+  // "Fonte: ..." no meio do texto é nota de rodapé, não parágrafo: entra em
+  // corpo menor e cor discreta, para não competir com a leitura.
+  const NOTA_DE_FONTE = /^fontes?\s*[:\u2014-]/i;
 
   const flushParagraph = () => {
     if (!paragraph.length) return;
-    html.push(`<p>${inline(paragraph.join(" "))}</p>`);
+    const texto = paragraph.join(" ");
+    const classe = NOTA_DE_FONTE.test(texto.trim()) ? ' class="dm-fonte"' : "";
+    html.push(`<p${classe}>${inline(texto)}</p>`);
     paragraph = [];
   };
   const flushList = () => {
@@ -115,6 +160,12 @@ export function renderMarkdown(source: string): string {
       flushAll();
       // O h1 da página é o título da matéria, então "#" no corpo vira h2.
       const level = Math.min(Math.max(heading[1].length, 2), 6);
+      // A lista de fontes no fim da matéria é um apêndice: ganha moldura
+      // própria e some do corpo principal do texto.
+      if (!emFontes && SECAO_DE_FONTES.test(heading[2].trim())) {
+        emFontes = true;
+        html.push('<section class="dm-fontes-texto" aria-label="Fontes desta matéria">');
+      }
       html.push(`<h${level}>${inline(heading[2])}</h${level}>`);
       continue;
     }
@@ -164,6 +215,7 @@ export function renderMarkdown(source: string): string {
 
   if (code) html.push(`<pre><code>${escapeHtml(code.lines.join("\n"))}</code></pre>`);
   flushAll();
+  if (emFontes) html.push("</section>");
 
   return html.join("\n");
 }
